@@ -163,3 +163,244 @@ button.mini{
   font-size: 11px;
   line-height: 1.3;
 }
+
+/* Copilot Mode Styles */
+.copilot-status {
+  padding: 12px;
+  background: rgba(5,7,15,.35);
+  border-radius: 14px;
+  margin-bottom: 12px;
+}
+
+.confidence-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+#confidencePercent {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.confidence-bar {
+  height: 24px;
+  background: rgba(255,255,255,.1);
+  border-radius: 12px;
+  position: relative;
+  overflow: visible;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 12px;
+  transition: width 0.5s ease, background 0.5s ease;
+  background: linear-gradient(90deg, #ef4444, #f97316, #eab308, #22c55e, #3b82f6);
+  background-size: 500% 100%;
+}
+
+.confidence-fill[data-level="beginner"] { background-position: 0% 0%; }
+.confidence-fill[data-level="learning"] { background-position: 25% 0%; }
+.confidence-fill[data-level="assisted"] { background-position: 50% 0%; }
+.confidence-fill[data-level="copilot"] { background-position: 75% 0%; }
+.confidence-fill[data-level="autonomous"] { background-position: 100% 0%; }
+
+.confidence-threshold {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 3px;
+  background: rgba(255,255,255,.8);
+  border-radius: 2px;
+  transform: translateX(-50%);
+}
+
+.confidence-threshold::after {
+  content: '🎯';
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+}
+
+.confidence-level {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px;
+  background: rgba(255,255,255,.05);
+  border-radius: 10px;
+}
+
+.level-emoji {
+  font-size: 18px;
+}
+
+.level-label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.level-desc {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.copilot-controls {
+  margin-bottom: 12px;
+}
+
+.copilot-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(5,7,15,.35);
+  border-radius: 14px;
+  margin-bottom: 10px;
+}
+
+/* Toggle Switch */
+.switch {
+  position: relative;
+  width: 48px;
+  height: 26px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255,255,255,.2);
+  border-radius: 26px;
+  transition: 0.3s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+input:checked + .slider {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+input:checked + .slider:before {
+  transform: translateX(22px);
+}
+
+input:disabled + .slider {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.copilot-threshold-control {
+  padding: 10px;
+  background: rgba(5,7,15,.35);
+  border-radius: 14px;
+}
+
+.copilot-threshold-control label {
+  font-size: 11px;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.copilot-threshold-control .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.copilot-threshold-control input[type="range"] {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  background: rgba(255,255,255,.2);
+  border-radius: 3px;
+}
+
+.copilot-threshold-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+#thresholdValue {
+  font-weight: 700;
+  min-width: 40px;
+  text-align: right;
+}
+
+.copilot-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+  background: rgba(5,7,15,.35);
+  border-radius: 10px;
+}
+
+.stat-icon {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.stat-label {
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.copilot-info {
+  font-size: 11px;
+}
+
+.copilot-goal {
+  padding: 10px;
+  background: linear-gradient(135deg, rgba(139,92,246,.15), rgba(59,130,246,.15));
+  border: 1px solid rgba(139,92,246,.3);
+  border-radius: 10px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.copilot-goal.achieved {
+  background: linear-gradient(135deg, rgba(34,197,94,.15), rgba(22,163,74,.15));
+  border-color: rgba(34,197,94,.3);
+}

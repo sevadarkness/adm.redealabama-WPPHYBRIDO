@@ -58,6 +58,88 @@ el("toggleKey").addEventListener("click", () => {
   i.type = i.type === "password" ? "text" : "password";
 });
 
+// Copilot Mode Functions
+async function loadCopilotData() {
+  try {
+    const resp = await send("GET_CONFIDENCE", {});
+    if (!resp?.ok) {
+      console.error("Failed to load copilot data:", resp?.error);
+      return;
+    }
+    
+    const { score, level, metrics, config, points_to_threshold } = resp;
+    
+    // Update confidence bar and percentage
+    el("confidencePercent").textContent = `${Math.round(score)}%`;
+    const fillEl = el("confidenceFill");
+    fillEl.style.width = `${score}%`;
+    fillEl.setAttribute("data-level", level.level);
+    
+    // Update confidence level
+    el("confidenceLevel").innerHTML = `
+      <span class="level-emoji">${level.emoji}</span>
+      <span class="level-label">${level.label}</span>
+      <span class="level-desc">${level.description}</span>
+    `;
+    
+    // Update threshold indicator
+    el("confidenceThreshold").style.left = `${config.copilot_threshold}%`;
+    
+    // Update copilot controls
+    el("copilotEnabled").checked = config.copilot_enabled;
+    el("copilotEnabled").disabled = score < config.copilot_threshold;
+    el("copilotStatusText").textContent = config.copilot_enabled 
+      ? "Modo Copiloto Ativo" 
+      : "Modo Copiloto Desativado";
+    
+    el("copilotThreshold").value = config.copilot_threshold;
+    el("thresholdValue").textContent = `${config.copilot_threshold}%`;
+    
+    // Update stats
+    el("statGood").textContent = metrics.total_good;
+    el("statBad").textContent = metrics.total_bad;
+    el("statCorrections").textContent = metrics.total_corrections;
+    el("statAutoSent").textContent = metrics.total_auto_sent;
+    
+    // Update goal
+    const goalEl = el("copilotGoal");
+    if (score >= config.copilot_threshold) {
+      goalEl.innerHTML = "🎉 <strong>Meta Atingida!</strong> Modo Copiloto disponível";
+      goalEl.classList.add("achieved");
+    } else {
+      goalEl.innerHTML = `🎯 <strong>Faltam <span id="pointsToGoal">${Math.round(points_to_threshold)}</span> pontos</strong> para o Modo Copiloto`;
+      goalEl.classList.remove("achieved");
+    }
+  } catch (e) {
+    console.error("Error loading copilot data:", e);
+  }
+}
+
+el("copilotEnabled").addEventListener("change", async (e) => {
+  const enabled = e.target.checked;
+  const resp = await send("TOGGLE_COPILOT", { enabled });
+  if (resp?.ok) {
+    el("copilotStatusText").textContent = enabled 
+      ? "Modo Copiloto Ativo" 
+      : "Modo Copiloto Desativado";
+  } else {
+    e.target.checked = !enabled;
+  }
+});
+
+el("copilotThreshold").addEventListener("input", (e) => {
+  el("thresholdValue").textContent = `${e.target.value}%`;
+});
+
+el("copilotThreshold").addEventListener("change", async (e) => {
+  const threshold = Number(e.target.value);
+  const resp = await send("SET_THRESHOLD", { threshold });
+  if (resp?.ok) {
+    el("confidenceThreshold").style.left = `${threshold}%`;
+    await loadCopilotData();
+  }
+});
+
 el("save").addEventListener("click", async () => {
   setStatus("Salvando…", true);
 
@@ -90,3 +172,4 @@ el("save").addEventListener("click", async () => {
 });
 
 load().catch((e) => setStatus(String(e?.message || e), false));
+loadCopilotData().catch(console.error);

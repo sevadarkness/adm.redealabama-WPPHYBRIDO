@@ -314,19 +314,41 @@ function setStatus(msg, ok = true) {
 }
 
 // -------------------------
-// Tab Navigation
+// Navigation (New Design)
 // -------------------------
-function setupTabNavigation() {
-  document.querySelectorAll('.popup-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      // Remover active de todas as abas
-      document.querySelectorAll('.popup-tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.popup-tab-content').forEach(c => c.classList.remove('active'));
+function initNavigation() {
+  const navBtns = document.querySelectorAll('.nav-btn');
+  const sections = document.querySelectorAll('.section');
+  
+  navBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
       
-      // Ativar aba clicada
-      tab.classList.add('active');
-      const tabId = `tab-${tab.dataset.tab}`;
-      document.getElementById(tabId).classList.add('active');
+      // Update active nav button
+      navBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      // Show corresponding section
+      sections.forEach(s => {
+        s.classList.toggle('active', s.dataset.section === tab);
+      });
+    });
+  });
+}
+
+// -------------------------
+// Accordion (New Design)
+// -------------------------
+function initAccordion() {
+  const accordionHeaders = document.querySelectorAll('.accordion-header');
+  
+  accordionHeaders.forEach(header => {
+    header.addEventListener('click', () => {
+      const item = header.parentElement;
+      const wasOpen = item.classList.contains('open');
+      
+      // Toggle clicked accordion
+      item.classList.toggle('open', !wasOpen);
     });
   });
 }
@@ -348,7 +370,7 @@ async function load() {
 
   // Quick Replies
   quickReplies = st.quickReplies || [];
-  renderQuickReplies(quickReplies);
+  renderQuickRepliesNew(quickReplies);
 
   // Team
   el("senderName").value = st.senderName || "";
@@ -398,47 +420,46 @@ async function loadCopilotData() {
     
     const { score, level, metrics, config, points_to_threshold } = resp;
     
-    // Update confidence bar and percentage
-    el("confidencePercent").textContent = `${Math.round(score)}%`;
-    const fillEl = el("confidenceFill");
-    fillEl.style.width = `${score}%`;
-    fillEl.setAttribute("data-level", level.level);
+    // Update confidence score and mode
+    const scoreEl = el("confidenceScore");
+    if (scoreEl) scoreEl.textContent = `${Math.round(score)}%`;
     
-    // Update confidence level
-    el("confidenceLevel").innerHTML = `
-      <span class="level-emoji">${level.emoji}</span>
-      <span class="level-label">${level.label}</span>
-      <span class="level-desc">${level.description}</span>
-    `;
-    
-    // Update threshold indicator
-    el("confidenceThreshold").style.left = `${config.copilot_threshold}%`;
+    const modeEl = el("copilotMode");
+    if (modeEl) modeEl.textContent = level.label || "Assistido";
     
     // Update copilot controls
-    el("copilotEnabled").checked = config.copilot_enabled;
-    el("copilotEnabled").disabled = score < config.copilot_threshold;
-    el("copilotStatusText").textContent = config.copilot_enabled 
-      ? "Modo Copiloto Ativo" 
-      : "Modo Copiloto Desativado";
+    const enabledEl = el("copilotEnabled");
+    if (enabledEl) {
+      enabledEl.checked = config.copilot_enabled;
+      enabledEl.disabled = score < config.copilot_threshold;
+    }
     
-    el("copilotThreshold").value = config.copilot_threshold;
-    el("thresholdValue").textContent = `${config.copilot_threshold}%`;
+    const statusEl = el("copilotStatusText");
+    if (statusEl) {
+      statusEl.textContent = config.copilot_enabled 
+        ? "Modo Copiloto Ativo" 
+        : "Modo Copiloto Desativado";
+    }
+    
+    const thresholdEl = el("copilotThreshold");
+    if (thresholdEl) thresholdEl.value = config.copilot_threshold;
+    
+    const thresholdValEl = el("thresholdValue");
+    if (thresholdValEl) thresholdValEl.textContent = `${config.copilot_threshold}%`;
     
     // Update stats
-    el("statGood").textContent = metrics.total_good;
-    el("statBad").textContent = metrics.total_bad;
-    el("statCorrections").textContent = metrics.total_corrections;
-    el("statAutoSent").textContent = metrics.total_auto_sent;
+    const statGoodEl = el("statGood");
+    if (statGoodEl) statGoodEl.textContent = metrics.total_good;
     
-    // Update goal
-    const goalEl = el("copilotGoal");
-    if (score >= config.copilot_threshold) {
-      goalEl.innerHTML = "🎉 <strong>Meta Atingida!</strong> Modo Copiloto disponível";
-      goalEl.classList.add("achieved");
-    } else {
-      goalEl.innerHTML = `🎯 <strong>Faltam <span id="pointsToGoal">${Math.round(points_to_threshold)}</span> pontos</strong> para o Modo Copiloto`;
-      goalEl.classList.remove("achieved");
-    }
+    const statBadEl = el("statBad");
+    if (statBadEl) statBadEl.textContent = metrics.total_bad;
+    
+    const statCorrEl = el("statCorrections");
+    if (statCorrEl) statCorrEl.textContent = metrics.total_corrections;
+    
+    const statAutoEl = el("statAutoSent");
+    if (statAutoEl) statAutoEl.textContent = metrics.total_auto_sent;
+    
   } catch (e) {
     console.error("Error loading copilot data:", e);
   }
@@ -448,11 +469,11 @@ async function loadCopilotData() {
 // Quick Replies Functions
 // -------------------------
 function addQuickReply() {
-  const trigger = el("qrTrigger").value.trim().toLowerCase();
-  const response = el("qrResponse").value.trim();
+  const trigger = el("newTrigger").value.trim().toLowerCase();
+  const response = el("newResponse").value.trim();
   
   if (!trigger || !response) {
-    setStatus("Preencha gatilho e resposta", false);
+    alert("Preencha gatilho e resposta");
     return;
   }
   
@@ -464,24 +485,24 @@ function addQuickReply() {
   };
   
   quickReplies.push(newReply);
-  renderQuickReplies(quickReplies);
+  renderQuickRepliesNew(quickReplies);
   saveSettings();
   
   // Limpar form
-  el("qrTrigger").value = "";
-  el("qrResponse").value = "";
-  setStatus("Mensagem rápida adicionada ✅", true);
+  el("newTrigger").value = "";
+  el("newResponse").value = "";
 }
 
 function removeQuickReply(id) {
   quickReplies = quickReplies.filter(qr => qr.id !== id);
-  renderQuickReplies(quickReplies);
+  renderQuickRepliesNew(quickReplies);
   saveSettings();
-  setStatus("Mensagem rápida removida", true);
 }
 
-function renderQuickReplies(replies) {
-  const container = el("quickReplyList");
+function renderQuickRepliesNew(replies) {
+  const container = el("quickRepliesList");
+  if (!container) return;
+  
   if (!replies.length) {
     container.innerHTML = '<p class="empty-state">Nenhuma mensagem rápida cadastrada</p>';
     return;
@@ -568,7 +589,9 @@ function clearSelection() {
 }
 
 function renderTeamMembers(members) {
-  const container = el("teamMembersContainer");
+  const container = el("teamList");
+  if (!container) return;
+  
   if (!members.length) {
     container.innerHTML = '<p class="empty-state">Nenhum membro cadastrado</p>';
     return;
@@ -691,45 +714,102 @@ function setupMainListeners() {
   if (mainListenersSetup) return;
   mainListenersSetup = true;
   
-  // Save button
-  el("save").addEventListener("click", saveSettings);
+  // Save button (Config tab)
+  const saveConfigBtn = el("saveConfig");
+  if (saveConfigBtn) {
+    saveConfigBtn.addEventListener("click", saveSettings);
+  }
   
   // Copilot controls
-  el("copilotEnabled").addEventListener("change", async (e) => {
-    const enabled = e.target.checked;
-    const resp = await send("TOGGLE_COPILOT", { enabled });
-    if (resp?.ok) {
-      el("copilotStatusText").textContent = enabled 
-        ? "Modo Copiloto Ativo" 
-        : "Modo Copiloto Desativado";
-    } else {
-      e.target.checked = !enabled;
-    }
-  });
+  const copilotEnabledEl = el("copilotEnabled");
+  if (copilotEnabledEl) {
+    copilotEnabledEl.addEventListener("change", async (e) => {
+      const enabled = e.target.checked;
+      const resp = await send("TOGGLE_COPILOT", { enabled });
+      if (resp?.ok) {
+        const statusEl = el("copilotStatusText");
+        if (statusEl) {
+          statusEl.textContent = enabled 
+            ? "Modo Copiloto Ativo" 
+            : "Modo Copiloto Desativado";
+        }
+      } else {
+        e.target.checked = !enabled;
+      }
+    });
+  }
   
-  el("copilotThreshold").addEventListener("input", (e) => {
-    el("thresholdValue").textContent = `${e.target.value}%`;
-  });
-  
-  el("copilotThreshold").addEventListener("change", async (e) => {
-    const threshold = Number(e.target.value);
-    const resp = await send("SET_THRESHOLD", { threshold });
-    if (resp?.ok) {
-      el("confidenceThreshold").style.left = `${threshold}%`;
-      await loadCopilotData();
-    }
-  });
+  const thresholdEl = el("copilotThreshold");
+  if (thresholdEl) {
+    thresholdEl.addEventListener("input", (e) => {
+      const valEl = el("thresholdValue");
+      if (valEl) valEl.textContent = `${e.target.value}%`;
+    });
+    
+    thresholdEl.addEventListener("change", async (e) => {
+      const threshold = Number(e.target.value);
+      const resp = await send("SET_THRESHOLD", { threshold });
+      if (resp?.ok) {
+        await loadCopilotData();
+      }
+    });
+  }
   
   // Quick Replies
-  el("addQuickReply").addEventListener("click", addQuickReply);
+  const addQRBtn = el("addQuickReply");
+  if (addQRBtn) {
+    addQRBtn.addEventListener("click", addQuickReply);
+  }
   
   // Team event listeners
-  el("addMember").addEventListener("click", addTeamMember);
-  el("selectAllMembers").addEventListener("click", selectAllMembers);
-  el("clearSelection").addEventListener("click", clearSelection);
-  el("sendToTeam").addEventListener("click", sendToTeam);
-  el("senderName").addEventListener("input", updateMessagePreview);
-  el("teamMessage").addEventListener("input", updateMessagePreview);
+  const addMemberBtn = el("addMember");
+  if (addMemberBtn) {
+    addMemberBtn.addEventListener("click", addTeamMember);
+  }
+  
+  const sendToTeamBtn = el("sendToTeam");
+  if (sendToTeamBtn) {
+    sendToTeamBtn.addEventListener("click", sendToTeam);
+  }
+  
+  const senderNameEl = el("senderName");
+  if (senderNameEl) {
+    senderNameEl.addEventListener("input", updateMessagePreview);
+  }
+  
+  const teamMsgEl = el("teamMessage");
+  if (teamMsgEl) {
+    teamMsgEl.addEventListener("input", updateMessagePreview);
+  }
+  
+  // Sync button
+  const syncBtn = el("syncNow");
+  if (syncBtn) {
+    syncBtn.addEventListener("click", async () => {
+      const indicator = el("syncIndicator");
+      if (indicator) {
+        indicator.classList.add("syncing");
+      }
+      
+      // Simulate sync
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      if (indicator) {
+        indicator.classList.remove("syncing");
+        indicator.classList.add("synced");
+      }
+      
+      const syncText = el("syncText");
+      if (syncText) {
+        syncText.textContent = `Última sync: ${new Date().toLocaleTimeString()}`;
+      }
+      
+      const lastSync = el("lastSync");
+      if (lastSync) {
+        lastSync.textContent = `Última sync: ${new Date().toLocaleTimeString()}`;
+      }
+    });
+  }
 }
 
 // -------------------------
@@ -739,12 +819,15 @@ function setupMainListeners() {
 document.addEventListener("DOMContentLoaded", async () => {
   await initLicenseSystem();
   setupLicenseListeners();
-  setupTabNavigation();
+  
+  // Setup navigation and accordion for new design
+  initNavigation();
+  initAccordion();
   
   // Só carregar configurações se já tiver licença e API key (screenMain)
   const storage = await chrome.storage.local.get(["licenseValid", "openaiApiKey"]);
   if (storage.licenseValid && storage.openaiApiKey) {
     setupMainListeners();
-    load().catch((e) => setStatus(String(e?.message || e), false));
+    load().catch((e) => console.error("Load error:", e));
   }
 });

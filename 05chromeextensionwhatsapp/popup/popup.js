@@ -67,6 +67,10 @@ async function showScreen(screenId) {
   if (btnReconfig) {
     if (screenId === "screenMain") {
       btnReconfig.classList.remove("hidden");
+      // Setup event listeners for main screen
+      if (typeof setupMainListeners === 'function') {
+        setupMainListeners();
+      }
       // Carregar configurações quando entrar na tela principal
       if (typeof load === 'function') {
         await load().catch((e) => {
@@ -296,18 +300,20 @@ function setStatus(msg, ok = true) {
 // -------------------------
 // Tab Navigation
 // -------------------------
-document.querySelectorAll('.popup-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    // Remover active de todas as abas
-    document.querySelectorAll('.popup-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.popup-tab-content').forEach(c => c.classList.remove('active'));
-    
-    // Ativar aba clicada
-    tab.classList.add('active');
-    const tabId = `tab-${tab.dataset.tab}`;
-    document.getElementById(tabId).classList.add('active');
+function setupTabNavigation() {
+  document.querySelectorAll('.popup-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Remover active de todas as abas
+      document.querySelectorAll('.popup-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.popup-tab-content').forEach(c => c.classList.remove('active'));
+      
+      // Ativar aba clicada
+      tab.classList.add('active');
+      const tabId = `tab-${tab.dataset.tab}`;
+      document.getElementById(tabId).classList.add('active');
+    });
   });
-});
+}
 
 // -------------------------
 // Load Settings
@@ -362,8 +368,6 @@ async function saveSettings() {
   if (resp?.ok) setStatus("Salvo ✅", true);
   else setStatus(resp?.error || "Falha ao salvar", false);
 }
-
-el("save").addEventListener("click", saveSettings);
 
 // -------------------------
 // Copilot Mode Functions
@@ -424,31 +428,6 @@ async function loadCopilotData() {
   }
 }
 
-el("copilotEnabled").addEventListener("change", async (e) => {
-  const enabled = e.target.checked;
-  const resp = await send("TOGGLE_COPILOT", { enabled });
-  if (resp?.ok) {
-    el("copilotStatusText").textContent = enabled 
-      ? "Modo Copiloto Ativo" 
-      : "Modo Copiloto Desativado";
-  } else {
-    e.target.checked = !enabled;
-  }
-});
-
-el("copilotThreshold").addEventListener("input", (e) => {
-  el("thresholdValue").textContent = `${e.target.value}%`;
-});
-
-el("copilotThreshold").addEventListener("change", async (e) => {
-  const threshold = Number(e.target.value);
-  const resp = await send("SET_THRESHOLD", { threshold });
-  if (resp?.ok) {
-    el("confidenceThreshold").style.left = `${threshold}%`;
-    await loadCopilotData();
-  }
-});
-
 // -------------------------
 // Quick Replies Functions
 // -------------------------
@@ -508,8 +487,6 @@ function renderQuickReplies(replies) {
     });
   });
 }
-
-el("addQuickReply").addEventListener("click", addQuickReply);
 
 // -------------------------
 // Team Functions
@@ -673,14 +650,6 @@ async function sendToTeam() {
   }
 }
 
-// Team event listeners
-el("addMember").addEventListener("click", addTeamMember);
-el("selectAllMembers").addEventListener("click", selectAllMembers);
-el("clearSelection").addEventListener("click", clearSelection);
-el("sendToTeam").addEventListener("click", sendToTeam);
-el("senderName").addEventListener("input", updateMessagePreview);
-el("teamMessage").addEventListener("input", updateMessagePreview);
-
 // -------------------------
 // Utility Functions
 // -------------------------
@@ -691,16 +660,63 @@ function escapeHtml(text) {
 }
 
 // -------------------------
+// Setup Main Event Listeners
+// -------------------------
+function setupMainListeners() {
+  // Save button
+  el("save").addEventListener("click", saveSettings);
+  
+  // Copilot controls
+  el("copilotEnabled").addEventListener("change", async (e) => {
+    const enabled = e.target.checked;
+    const resp = await send("TOGGLE_COPILOT", { enabled });
+    if (resp?.ok) {
+      el("copilotStatusText").textContent = enabled 
+        ? "Modo Copiloto Ativo" 
+        : "Modo Copiloto Desativado";
+    } else {
+      e.target.checked = !enabled;
+    }
+  });
+  
+  el("copilotThreshold").addEventListener("input", (e) => {
+    el("thresholdValue").textContent = `${e.target.value}%`;
+  });
+  
+  el("copilotThreshold").addEventListener("change", async (e) => {
+    const threshold = Number(e.target.value);
+    const resp = await send("SET_THRESHOLD", { threshold });
+    if (resp?.ok) {
+      el("confidenceThreshold").style.left = `${threshold}%`;
+      await loadCopilotData();
+    }
+  });
+  
+  // Quick Replies
+  el("addQuickReply").addEventListener("click", addQuickReply);
+  
+  // Team event listeners
+  el("addMember").addEventListener("click", addTeamMember);
+  el("selectAllMembers").addEventListener("click", selectAllMembers);
+  el("clearSelection").addEventListener("click", clearSelection);
+  el("sendToTeam").addEventListener("click", sendToTeam);
+  el("senderName").addEventListener("input", updateMessagePreview);
+  el("teamMessage").addEventListener("input", updateMessagePreview);
+}
+
+// -------------------------
 // Initialize
 // -------------------------
 // Inicializar sistema de licença quando DOM estiver pronto
 document.addEventListener("DOMContentLoaded", async () => {
   await initLicenseSystem();
   setupLicenseListeners();
+  setupTabNavigation();
   
   // Só carregar configurações se já tiver licença e API key (screenMain)
   const storage = await chrome.storage.local.get(["licenseValid", "openaiApiKey"]);
   if (storage.licenseValid && storage.openaiApiKey) {
+    setupMainListeners();
     load().catch((e) => setStatus(String(e?.message || e), false));
   }
 });

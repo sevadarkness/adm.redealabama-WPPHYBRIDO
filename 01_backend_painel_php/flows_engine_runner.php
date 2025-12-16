@@ -450,8 +450,6 @@
         }
     }
 
-    }
-
     try {
         flows_engine_run($pdo);
         echo "Execução de fluxos finalizada." . PHP_EOL;

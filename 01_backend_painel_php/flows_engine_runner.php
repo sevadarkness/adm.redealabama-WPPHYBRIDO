@@ -29,6 +29,101 @@
      */
 
     /**
+     * Processa um step de mensagem: gera conteúdo via IA e enfileira.
+     */
+    function flows_process_message_step(PDO $pdo, array $step, array $conv, int $flowId, ?array $exec): void
+    {
+        $conversaId = (int)$conv['id'];
+        $telefone   = (string)$conv['telefone_cliente'];
+        
+        // Monta prompt para IA (usar template_slug do step como "template" lógico)
+        $templateSlug = $step['template_slug'] ?? 'whatsapp_reativacao';
+        
+        $prompt = "Você é um assistente de automação de WhatsApp da Rede Alabama.
+
+" .
+                  "Gere uma mensagem pronta para reativar um cliente via WhatsApp, com base no seguinte contexto:
+" .
+                  "- Template: {$templateSlug}
+" .
+                  "- Tom: engajador, com foco em reconquistar o cliente.
+
+" .
+                  "Instruções gerais:
+" .
+                  "- Responda SEMPRE em português do Brasil.
+" .
+                  "- Devolva apenas a mensagem final para colar no WhatsApp.
+";
+
+        $result = llm_call($prompt, [
+            'context' => 'whatsapp_flow_engine',
+            'meta'    => [
+                'flow_id'     => $flowId,
+                'conversa_id' => $conversaId,
+                'step_id'     => $step['id'] ?? null,
+                'telefone'    => $telefone,
+            ],
+        ]);
+
+        if (!$result['ok']) {
+            echo "  Falha IA para conversa {$conversaId}: " . ($result['error'] ?? 'erro') . PHP_EOL;
+            return;
+        }
+
+        $mensagemGerada = $result['content'];
+
+        // Enfileira em whatsapp_flow_queue
+        $insQueue = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_7646();
+        $insQueue->execute([
+            ':flow_id'      => $flowId,
+            ':flow_step_id' => (int)($step['id'] ?? 0),
+            ':conversa_id'  => $conversaId,
+            ':telefone'     => $telefone,
+            ':mensagem'     => $mensagemGerada,
+        ]);
+
+        echo "  Mensagem gerada para conversa {$conversaId}." . PHP_EOL;
+    }
+
+    /**
+     * Atualiza ou cria uma execução de fluxo para avançar para o próximo step.
+     */
+    function flows_update_execution(PDO $pdo, int $flowId, int $conversaId, string $nextStepId, int $delay, ?array $exec): void
+    {
+        if ($exec) {
+            // Atualiza execução existente
+            $updExec = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_8318();
+            $updExec->execute([
+                ':current_step' => $nextStepId,
+                ':delay'        => $delay,
+                ':id'           => (int)$exec['id'],
+            ]);
+        } else {
+            // Cria nova execução
+            $insExec = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_9083();
+            $insExec->execute([
+                ':flow_id'      => $flowId,
+                ':conversa_id'  => $conversaId,
+                ':current_step' => $nextStepId,
+                ':delay'        => $delay,
+                ':next_run_at'  => $delay > 0 ? null : null,
+            ]);
+        }
+    }
+
+    /**
+     * Finaliza uma execução de fluxo (marca como concluída).
+     */
+    function flows_finalize_execution(PDO $pdo, ?array $exec): void
+    {
+        if ($exec) {
+            $upd = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_5369();
+            $upd->execute([':id' => (int)$exec['id']]);
+        }
+    }
+
+    /**
      * Carrega definição de steps (grafo) para um fluxo.
      * Usa whatsapp_flows.definition_json quando existir; fallback para whatsapp_flow_steps linear.
      *
@@ -277,10 +372,7 @@
 
                 if (!$nextStep) {
                     // Não há próximo step -> finaliza execução
-                    if ($exec) {
-                        $upd = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_5369();
-                        $upd->execute([':id' => (int)$exec['id']]);
-                    }
+                    flows_finalize_execution($pdo, $exec);
                     continue;
                 }
 
@@ -316,31 +408,12 @@
 
                     if ($chosenId === null || !isset($stepsById[$chosenId])) {
                         // Branch inválido -> finaliza execução
-                        if ($exec) {
-                            $upd = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_5369();
-                            $upd->execute([':id' => (int)$exec['id']]);
-                        }
+                        flows_finalize_execution($pdo, $exec);
                         continue;
                     }
 
                     // Atualiza execução apenas para apontar para o próximo step, sem enfileirar mensagem
-                    if ($exec) {
-                        $updExec = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_8318();
-                        $updExec->execute([
-                            ':current_step' => $chosenId,
-                            ':delay'        => 0,
-                            ':id'           => (int)$exec['id'],
-                        ]);
-                    } else {
-                        $insExec = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_9083();
-                        $insExec->execute([
-                            ':flow_id'        => $flowId,
-                            ':conversa_id'    => $conversaId,
-                            ':current_step'   => $chosenId,
-                            ':delay'          => 0,
-                            ':next_run_at'    => null,
-                        ]);
-                    }
+                    flows_update_execution($pdo, $flowId, $conversaId, $chosenId, 0, $exec);
 
                     if (function_exists('log_app_event')) {
                         log_app_event('flows_engine', 'conditional_step', [
@@ -357,139 +430,22 @@
                     continue;
                 }
 
-                // Step normal (mensagem) -> continua o fluxo original de geração/enfileiramento
-
-            $sqlSteps = "SELECT id, step_order, step_type, template_slug, delay_minutes
-                         FROM whatsapp_flow_steps
-                         WHERE flow_id = :flow_id
-                         ORDER BY step_order ASC";
-            $stmtSteps = $pdo->prepare($sqlSteps);
-            $stmtSteps->execute([':flow_id' => $flowId]);
-            $steps = $stmtSteps->fetchAll(PDO::FETCH_ASSOC);
-
-            if (!$steps) {
-                echo "  Fluxo #{$flowId} não possui steps definidos." . PHP_EOL;
-                continue;
-            }
-
-            // 4) Para cada conversa, criar/avançar uma execução
-            foreach ($convs as $conv) {
-                $conversaId = (int)$conv['id'];
-                $telefone   = $conv['telefone_cliente'];
-
-                // Buscar execução existente
-                $sqlExec = "SELECT id, current_step, status, next_run_at
-                            FROM whatsapp_flow_executions
-                            WHERE flow_id = :flow_id AND conversa_id = :conversa_id
-                            LIMIT 1";
-                $stmtExec = $pdo->prepare($sqlExec);
-                $stmtExec->execute([
-                    ':flow_id'     => $flowId,
-                    ':conversa_id' => $conversaId,
-                ]);
-                $exec = $stmtExec->fetch(PDO::FETCH_ASSOC);
-
-                if ($exec && $exec['status'] === 'finalizado') {
-                    continue; // fluxo já concluído para esta conversa
-                }
-
-                // Determina próximo step
-                $currentStepIndex = $exec ? (int)$exec['current_step'] : 0;
-                $nextStepIndex    = $currentStepIndex + 1;
-                $nextStep         = null;
-
-                foreach ($steps as $s) {
-                    if ((int)$s['step_order'] === $nextStepIndex) {
-                        $nextStep = $s;
-                        break;
-                    }
-                }
-
-                if (!$nextStep) {
-                    // Não há próximo step -> finaliza execução
-                    if ($exec) {
-                        $upd = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_5369();
-                        $upd->execute([':id' => (int)$exec['id']]);
-                    }
-                    continue;
-                }
-
-                // Checa se já está na hora de rodar (delay)
-                if ($exec && $exec['next_run_at'] !== null) {
-                    $nr = strtotime($exec['next_run_at']);
-                    if ($nr > time()) {
-                        // Ainda aguarda delay
-                        continue;
-                    }
-                }
-
-                // Monta prompt para IA (usar template_slug do step como "template" lógico)
-                $templateSlug = $nextStep['template_slug'] ?? 'whatsapp_reativacao';
-                $toneKey      = 'engajador'; // para flows de reativação/campanha, default engajador
-
-                $prompt = "Você é um assistente de automação de WhatsApp da Rede Alabama.
-
-" .
-                          "Gere uma mensagem pronta para reativar um cliente via WhatsApp, com base no seguinte contexto:
-" .
-                          "- Template: {$templateSlug}
-" .
-                          "- Tom: engajador, com foco em reconquistar o cliente.
-
-" .
-                          "Instruções gerais:
-" .
-                          "- Responda SEMPRE em português do Brasil.
-" .
-                          "- Devolva apenas a mensagem final para colar no WhatsApp.
-";
-
-                $result = llm_call($prompt, [
-                    'context' => 'whatsapp_flow_engine',
-                    'meta'    => [
-                        'flow_id'     => $flowId,
-                        'conversa_id' => $conversaId,
-                        'step_id'     => (int)$nextStep['id'],
-                        'telefone'    => $telefone,
-                    ],
-                ]);
-
-                if (!$result['ok']) {
-                    echo "  Falha IA para conversa {$conversaId}: " . ($result['error'] ?? 'erro') . PHP_EOL;
-                    continue;
-                }
-
-                $mensagemGerada = $result['content'];
-
-                // Enfileira em whatsapp_flow_queue
-                $insQueue = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_7646();
-                $insQueue->execute([
-                    ':flow_id'     => $flowId,
-                    ':flow_step_id'=> (int)$nextStep['id'],
-                    ':conversa_id' => $conversaId,
-                    ':telefone'    => $telefone,
-                    ':mensagem'    => $mensagemGerada,
-                ]);
-
-                // Atualiza/Cria execução
-                if ($exec) {
-                    $updExec = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_8318();
-                    $updExec->execute([
-                        ':current_step' => $nextStepIndex,
-                        ':delay'        => (int)$nextStep['delay_minutes'],
-                        ':id'           => (int)$exec['id'],
-                    ]);
+                // Step normal (mensagem) -> processa mensagem e avança fluxo
+                flows_process_message_step($pdo, $nextStep, $conv, $flowId, $exec);
+                
+                // Determina próximo step ID
+                $afterStepId = $nextStep['next'] ?? null;
+                
+                // Atualiza execução para apontar para o próximo step
+                if ($afterStepId && isset($stepsById[$afterStepId])) {
+                    $delay = (int)($nextStep['delay_minutes'] ?? 0);
+                    flows_update_execution($pdo, $flowId, $conversaId, $afterStepId, $delay, $exec);
+                    echo "  Fluxo {$flowId} avançado para conversa {$conversaId}, próximo step: {$afterStepId}." . PHP_EOL;
                 } else {
-                    $insExec = (new \RedeAlabama\Repositories\Screens\FlowsEngineRunnerRepository($pdo))->prepare_9083();
-                    $insExec->execute([
-                        ':flow_id'     => $flowId,
-                        ':conversa_id' => $conversaId,
-                        ':current_step'=> $nextStepIndex,
-                        ':delay'       => (int)$nextStep['delay_minutes'],
-                    ]);
+                    // Não há próximo step -> finaliza execução
+                    flows_finalize_execution($pdo, $exec);
+                    echo "  Fluxo {$flowId} finalizado para conversa {$conversaId}." . PHP_EOL;
                 }
-
-                echo "  Fluxo {$flowId} avançado para conversa {$conversaId}, step {$nextStepIndex}." . PHP_EOL;
             }
         }
     }

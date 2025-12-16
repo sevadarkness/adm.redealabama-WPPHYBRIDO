@@ -77,6 +77,23 @@ require_once __DIR__ . '/whatsapp_llm_helper.php';
 
 ini_set('display_errors', '0');
 
+/**
+ * Valida a assinatura HMAC SHA-256 do webhook do WhatsApp Meta.
+ * 
+ * @param string $payload Corpo da requisição (raw)
+ * @param string $signature Header X-Hub-Signature-256 recebido
+ * @param string $appSecret App Secret do Facebook/Meta
+ * @return bool
+ */
+function whatsapp_validate_signature(string $payload, string $signature, string $appSecret): bool
+{
+    if ($appSecret === '' || $signature === '') {
+        return false;
+    }
+    $expected = 'sha256=' . hash_hmac('sha256', $payload, $appSecret);
+    return hash_equals($expected, $signature);
+}
+
 function whatsapp_webhook_json_response(array $data, int $code = 200): void
 {
     http_response_code($code);

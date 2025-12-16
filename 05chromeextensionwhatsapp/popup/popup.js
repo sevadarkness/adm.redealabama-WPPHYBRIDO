@@ -45,7 +45,20 @@ function validateLicense(inputKey) {
 }
 
 function validateApiKey(apiKey) {
-  return apiKey && apiKey.startsWith("sk-") && apiKey.length > 20;
+  // OpenAI API keys start with "sk-" and are typically 48-51 characters
+  // Format: sk-xxxx... or sk-proj-xxxx...
+  if (!apiKey || typeof apiKey !== 'string') return false;
+  
+  const trimmed = apiKey.trim();
+  if (!trimmed.startsWith("sk-")) return false;
+  
+  // Check minimum length (should be at least 40 chars)
+  if (trimmed.length < 40) return false;
+  
+  // Check for valid characters (alphanumeric and hyphens)
+  if (!/^sk-[a-zA-Z0-9-]+$/.test(trimmed)) return false;
+  
+  return true;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -249,12 +262,15 @@ function setupLicenseListeners() {
     });
   }
 
-  // Fechar modal clicando no backdrop
-  const backdrop = document.querySelector(".modal-backdrop");
-  if (backdrop) {
-    backdrop.addEventListener("click", () => {
-      document.getElementById("modalReconfig").classList.add("hidden");
-      document.getElementById("reconfigError").classList.add("hidden");
+  // Fechar modal clicando no backdrop (não no conteúdo)
+  const modal = document.getElementById("modalReconfig");
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      // Only close if clicking directly on modal (backdrop), not on modal-content
+      if (e.target === modal || e.target.classList.contains("modal-backdrop")) {
+        modal.classList.add("hidden");
+        document.getElementById("reconfigError").classList.add("hidden");
+      }
     });
   }
   
@@ -662,7 +678,13 @@ function escapeHtml(text) {
 // -------------------------
 // Setup Main Event Listeners
 // -------------------------
+let mainListenersSetup = false;
+
 function setupMainListeners() {
+  // Only setup once to avoid duplicate listeners
+  if (mainListenersSetup) return;
+  mainListenersSetup = true;
+  
   // Save button
   el("save").addEventListener("click", saveSettings);
   

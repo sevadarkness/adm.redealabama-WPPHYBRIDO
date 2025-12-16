@@ -84,7 +84,13 @@ $userPages = array_filter($searchablePages, function($page) use ($nivel) {
 });
 
 // Converte para JSON para uso no JavaScript
-$userPagesJson = json_encode(array_values($userPages), JSON_THROW_ON_ERROR);
+try {
+    $userPagesJson = json_encode(array_values($userPages), JSON_THROW_ON_ERROR);
+} catch (JsonException $e) {
+    // Fallback para array vazio em caso de erro
+    $userPagesJson = '[]';
+    error_log('Failed to encode search pages: ' . $e->getMessage());
+}
 ?>
 
 <div id="alabama-search-modal" class="alabama-search-modal" style="display: none;">

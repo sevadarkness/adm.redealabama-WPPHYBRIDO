@@ -23,12 +23,13 @@ $usuario_id = (int)$_SESSION['usuario_id'];
 try {
     $badges = [];
     
-    // new_leads: COUNT leads criados hoje
+    // new_leads: COUNT leads criados hoje (usando índice otimizado)
     try {
         $stmt = $pdo->prepare("
             SELECT COUNT(*) as total 
             FROM leads 
-            WHERE DATE(data_cadastro) = CURDATE()
+            WHERE data_cadastro >= CURDATE() 
+            AND data_cadastro < CURDATE() + INTERVAL 1 DAY
             AND status = 'novo'
         ");
         $stmt->execute();

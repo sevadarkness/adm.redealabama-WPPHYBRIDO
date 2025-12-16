@@ -127,7 +127,10 @@ $menuCategories = [
     ],
 ];
 
-$current_page = basename($_SERVER['PHP_SELF'] ?? '');
+// Use existing $current_page if set by parent, otherwise define it
+if (!isset($current_page)) {
+    $current_page = basename($_SERVER['PHP_SELF'] ?? '');
+}
 ?>
 
 <aside id="alabama-sidebar" class="alabama-sidebar">

@@ -296,7 +296,12 @@
      */
     function loadBadges() {
         fetch('api/menu_badges.php')
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success && data.badges) {
                     updateBadges(data.badges);
@@ -358,7 +363,12 @@
      */
     function loadFavorites() {
         fetch('api/favorites.php')
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success && data.favorites) {
                     favorites = data.favorites;
@@ -397,7 +407,12 @@
             },
             body: JSON.stringify(payload)
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('HTTP error! status: ' + response.status);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 // Update UI

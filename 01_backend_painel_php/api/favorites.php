@@ -43,7 +43,13 @@ try {
     
     // POST: Adiciona, remove ou reordena favoritos
     if ($method === 'POST') {
-        $input = json_decode(file_get_contents('php://input'), true, 512, JSON_THROW_ON_ERROR);
+        try {
+            $input = json_decode(file_get_contents('php://input'), true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid JSON'], JSON_THROW_ON_ERROR);
+            exit;
+        }
         
         // Valida CSRF token
         if (!isset($input['_csrf_token']) || !validate_csrf_token($input['_csrf_token'])) {

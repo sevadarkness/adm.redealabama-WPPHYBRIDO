@@ -3,91 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WhatsHybrid Lite - Rede Alabama</title>
+  <title>WhatsHybrid Lite - CRM Quantum</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="wrap">
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <!-- TELA 1: INSERIR CHAVE DE LICENÇA -->
+    <!-- POPUP PRINCIPAL -->
     <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="screenLicense" class="screen active">
-      <div class="license-box">
-        <div class="license-icon">🔐</div>
-        <h2>Chave de Licença</h2>
-        <p class="hint">Digite sua chave de licença para ativar o sistema</p>
-        
-        <div class="input-group">
-          <input 
-            type="password" 
-            id="licenseKey" 
-            placeholder="Digite a chave de licença..."
-            autocomplete="off"
-          />
-          <button id="toggleLicenseKey" class="btn-icon" type="button" title="Mostrar/ocultar">
-            👁️
-          </button>
-        </div>
-        
-        <button id="btnValidateLicense" class="btn-primary btn-large" type="button">
-          ✅ Validar Licença
-        </button>
-        
-        <p id="licenseError" class="error-msg hidden">
-          ❌ Chave de licença inválida
-        </p>
-      </div>
-      
-      <footer class="license-footer">
-        <p>© 2024 Rede Alabama - Sistema Proprietário</p>
-        <p class="small">Protegido por Lei 9.609/98</p>
-      </footer>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <!-- TELA 2: CONFIGURAR API KEY OPENAI -->
-    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="screenApiKey" class="screen">
-      <div class="api-key-box">
-        <div class="success-badge">✅ Licença Válida!</div>
-        
-        <div class="api-key-icon">🤖</div>
-        <h2>Chave API OpenAI</h2>
-        <p class="hint">Configure sua chave da API OpenAI para ativar a IA</p>
-        
-        <div class="input-group">
-          <input 
-            type="password" 
-            id="openaiApiKey" 
-            placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx"
-            autocomplete="off"
-          />
-          <button id="toggleApiKey" class="btn-icon" type="button" title="Mostrar/ocultar">
-            👁️
-          </button>
-        </div>
-        
-        <p class="hint small">
-          Obtenha sua chave em: 
-          <a href="https://platform.openai.com/api-keys" target="_blank">
-            platform.openai.com/api-keys
-          </a>
-        </p>
-        
-        <button id="btnSaveApiKey" class="btn-primary btn-large" type="button">
-          💾 Salvar API Key
-        </button>
-        
-        <p id="apiKeyError" class="error-msg hidden">
-          ❌ API Key inválida. Deve começar com "sk-"
-        </p>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <!-- TELA 3: POPUP PRINCIPAL (NOVO DESIGN) -->
-    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="screenMain" class="screen">
+    <div id="screenMain" class="screen active">
       <div class="app">
         <!-- Header -->
         <header class="header">
@@ -95,11 +19,18 @@
             <span class="logo">🤖</span>
             <div class="brand">
               <h1 class="brand-name">WhatsHybrid Lite</h1>
-              <span class="brand-subtitle">Rede Alabama • Atendimento Inteligente</span>
+              <span class="brand-subtitle">CRM Quantum • Atendimento Inteligente</span>
             </div>
           </div>
           <div class="header-right">
-            <button class="header-btn" id="btnReconfig" title="Reconfigurar Licença">🔐</button>
+            <div class="header-field" id="licenseFieldContainer">
+              <span class="field-icon">🔐</span>
+              <input type="password" id="headerLicenseKey" class="header-input" placeholder="Licença" autocomplete="off">
+            </div>
+            <div class="header-field hidden" id="apiKeyFieldContainer">
+              <span class="field-icon">🔑</span>
+              <input type="password" id="headerApiKey" class="header-input" placeholder="API Key" autocomplete="off">
+            </div>
           </div>
         </header>
 
@@ -121,9 +52,17 @@
             <span class="nav-icon">📊</span>
             <span class="nav-label">Copilot</span>
           </button>
-          <button class="nav-btn" data-tab="sync">
-            <span class="nav-icon">🔄</span>
-            <span class="nav-label">Sync</span>
+          <button class="nav-btn" data-tab="ia">
+            <span class="nav-icon">🧠</span>
+            <span class="nav-label">IA</span>
+          </button>
+          <button class="nav-btn" data-tab="camp">
+            <span class="nav-icon">📢</span>
+            <span class="nav-label">Camp</span>
+          </button>
+          <button class="nav-btn" data-tab="cont">
+            <span class="nav-icon">📇</span>
+            <span class="nav-label">Cont</span>
           </button>
         </nav>
 
@@ -315,31 +254,324 @@
             </div>
           </section>
 
-          <!-- Sync Section -->
-          <section class="section" data-section="sync">
-            <div class="sync-status">
-              <div class="sync-indicator" id="syncIndicator">
-                <span class="sync-icon">🔄</span>
-                <span class="sync-text">Última sync: nunca</span>
-              </div>
-            </div>
-            
-            <button class="btn btn-primary btn-full" id="syncNow">
-              🔄 Sincronizar Agora
-            </button>
-            
+          <!-- IA Section (Training) -->
+          <section class="section" data-section="ia">
+            <!-- Dados do Negócio -->
             <div class="accordion-item">
               <button class="accordion-header">
-                <span>📊 Dados Sincronizados</span>
+                <span>🏢 Dados do Negócio</span>
                 <span class="accordion-icon">▼</span>
               </button>
               <div class="accordion-content">
-                <ul class="sync-data-list">
-                  <li>✅ Produtos: <span id="syncProducts">0</span></li>
-                  <li>✅ FAQ: <span id="syncFaq">0</span></li>
-                  <li>✅ Respostas: <span id="syncCanned">0</span></li>
-                  <li>✅ Documentos: <span id="syncDocs">0</span></li>
-                </ul>
+                <div class="form-group">
+                  <label>Nome da Empresa</label>
+                  <input type="text" id="businessName" placeholder="Ex: Minha Empresa">
+                </div>
+                <div class="form-group">
+                  <label>Descrição</label>
+                  <textarea id="businessDescription" placeholder="Descreva seu negócio..."></textarea>
+                </div>
+                <div class="form-group">
+                  <label>Segmento</label>
+                  <input type="text" id="businessSegment" placeholder="Ex: E-commerce, Serviços...">
+                </div>
+                <div class="form-group">
+                  <label>Horário de Funcionamento</label>
+                  <input type="text" id="businessHours" placeholder="Ex: Seg-Sex 9h-18h">
+                </div>
+              </div>
+            </div>
+
+            <!-- Produtos/Serviços -->
+            <div class="accordion-item">
+              <button class="accordion-header">
+                <span>📦 Produtos/Serviços</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div id="productsList" class="items-list"></div>
+                <div class="add-item-form">
+                  <input type="text" id="productName" placeholder="Nome do produto">
+                  <input type="text" id="productPrice" placeholder="Preço">
+                  <textarea id="productDescription" placeholder="Descrição"></textarea>
+                  <button class="btn btn-primary" id="addProduct">➕ Adicionar Produto</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- FAQ -->
+            <div class="accordion-item">
+              <button class="accordion-header">
+                <span>❓ FAQ (Perguntas Frequentes)</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div id="faqList" class="items-list"></div>
+                <div class="add-item-form">
+                  <input type="text" id="faqQuestion" placeholder="Pergunta">
+                  <textarea id="faqAnswer" placeholder="Resposta"></textarea>
+                  <button class="btn btn-primary" id="addFaq">➕ Adicionar FAQ</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Políticas -->
+            <div class="accordion-item">
+              <button class="accordion-header">
+                <span>📋 Políticas</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div class="form-group">
+                  <label>Formas de Pagamento</label>
+                  <textarea id="policyPayment" placeholder="PIX, Cartão, Boleto..."></textarea>
+                </div>
+                <div class="form-group">
+                  <label>Política de Entrega</label>
+                  <textarea id="policyDelivery" placeholder="Prazos, frete grátis..."></textarea>
+                </div>
+                <div class="form-group">
+                  <label>Política de Devolução</label>
+                  <textarea id="policyReturns" placeholder="Prazo para troca, condições..."></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tom de Voz -->
+            <div class="accordion-item">
+              <button class="accordion-header">
+                <span>🎭 Tom de Voz</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div class="form-group">
+                  <label>Estilo de Comunicação</label>
+                  <select id="toneStyle">
+                    <option value="formal">Formal</option>
+                    <option value="informal" selected>Informal</option>
+                    <option value="friendly">Amigável</option>
+                    <option value="professional">Profissional</option>
+                  </select>
+                </div>
+                <div class="checkbox-group">
+                  <label class="checkbox">
+                    <input type="checkbox" id="toneEmojis" checked>
+                    <span>Usar emojis nas respostas</span>
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label>Saudação Padrão</label>
+                  <input type="text" id="toneGreeting" placeholder="Ex: Olá! Tudo bem?">
+                </div>
+                <div class="form-group">
+                  <label>Despedida Padrão</label>
+                  <input type="text" id="toneClosing" placeholder="Ex: Qualquer dúvida, estou à disposição!">
+                </div>
+              </div>
+            </div>
+
+            <!-- Documentos -->
+            <div class="accordion-item">
+              <button class="accordion-header">
+                <span>📄 Documentos</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div id="documentsList" class="items-list"></div>
+                <div class="form-group">
+                  <label>Adicionar Documento (texto)</label>
+                  <input type="text" id="docTitle" placeholder="Título do documento">
+                  <textarea id="docContent" placeholder="Conteúdo do documento..."></textarea>
+                  <button class="btn btn-primary" id="addDocument">📄 Adicionar Documento</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Respostas Prontas -->
+            <div class="accordion-item">
+              <button class="accordion-header">
+                <span>💬 Respostas Prontas (Canned)</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div id="cannedList" class="items-list"></div>
+                <div class="add-item-form">
+                  <input type="text" id="cannedTitle" placeholder="Título/Categoria">
+                  <textarea id="cannedContent" placeholder="Texto da resposta..."></textarea>
+                  <button class="btn btn-primary" id="addCanned">💬 Adicionar Resposta</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Botões de ação -->
+            <div class="action-buttons">
+              <button class="btn btn-primary btn-full" id="saveKnowledge">
+                💾 Salvar Conhecimento
+              </button>
+              <button class="btn btn-secondary" id="syncKnowledge">
+                🔄 Sincronizar com Servidor
+              </button>
+            </div>
+          </section>
+
+          <!-- Campanhas Section -->
+          <section class="section" data-section="camp">
+            <!-- Nova Campanha -->
+            <div class="accordion-item open">
+              <button class="accordion-header">
+                <span>➕ Nova Campanha</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div class="form-group">
+                  <label>Nome da Campanha</label>
+                  <input type="text" id="campaignName" placeholder="Ex: Black Friday 2024">
+                </div>
+                <div class="form-group">
+                  <label>Mensagem</label>
+                  <textarea id="campaignMessage" placeholder="Digite a mensagem da campanha..." rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                  <label>Anexar Imagem (URL)</label>
+                  <input type="text" id="campaignImage" placeholder="https://...">
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>📅 Data</label>
+                    <input type="date" id="campaignDate">
+                  </div>
+                  <div class="form-group">
+                    <label>⏰ Hora</label>
+                    <input type="time" id="campaignTime">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Intervalo entre envios (segundos)</label>
+                  <input type="number" id="campaignInterval" value="5" min="1" max="60">
+                </div>
+                <div class="form-group">
+                  <label>Selecionar Contatos</label>
+                  <div class="contact-selector" id="campaignContacts">
+                    <p class="empty-state">Nenhum contato. Vá em "Contatos" para extrair.</p>
+                  </div>
+                </div>
+                <button class="btn btn-primary btn-full" id="startCampaign">
+                  🚀 Iniciar Campanha
+                </button>
+                <button class="btn btn-secondary btn-full" id="scheduleCampaign">
+                  ⏰ Agendar Campanha
+                </button>
+              </div>
+            </div>
+
+            <!-- Campanhas Ativas -->
+            <div class="accordion-item">
+              <button class="accordion-header">
+                <span>📊 Campanhas Ativas</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div id="activeCampaigns" class="campaigns-list">
+                  <p class="empty-state">Nenhuma campanha ativa</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Histórico -->
+            <div class="accordion-item">
+              <button class="accordion-header">
+                <span>📜 Histórico de Campanhas</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div id="campaignHistory" class="campaigns-list">
+                  <p class="empty-state">Nenhuma campanha realizada</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Contatos Section -->
+          <section class="section" data-section="cont">
+            <!-- Extrair Contatos -->
+            <div class="accordion-item open">
+              <button class="accordion-header">
+                <span>📥 Extrair Contatos</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div class="extraction-options">
+                  <button class="btn btn-primary" id="extractFromChats">
+                    💬 Extrair das Conversas
+                  </button>
+                  <button class="btn btn-secondary" id="extractFromGroups">
+                    👥 Extrair de Grupos
+                  </button>
+                </div>
+                <div class="extraction-status" id="extractionStatus">
+                  <span class="status-icon">📊</span>
+                  <span class="status-text">Total: <strong id="totalContacts">0</strong> contatos</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Lista de Contatos -->
+            <div class="accordion-item">
+              <button class="accordion-header">
+                <span>📋 Lista de Contatos</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div class="search-box">
+                  <input type="text" id="searchContacts" placeholder="🔍 Buscar contato...">
+                </div>
+                <div id="contactsList" class="contacts-list">
+                  <p class="empty-state">Nenhum contato extraído</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Importar/Exportar -->
+            <div class="accordion-item">
+              <button class="accordion-header">
+                <span>📤 Importar / Exportar</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div class="import-export-buttons">
+                  <button class="btn btn-primary" id="exportContacts">
+                    📤 Exportar CSV
+                  </button>
+                  <button class="btn btn-secondary" id="importContacts">
+                    📥 Importar CSV
+                  </button>
+                  <input type="file" id="importFile" accept=".csv" style="display: none;">
+                </div>
+              </div>
+            </div>
+
+            <!-- Adicionar Manual -->
+            <div class="accordion-item">
+              <button class="accordion-header">
+                <span>➕ Adicionar Contato Manual</span>
+                <span class="accordion-icon">▼</span>
+              </button>
+              <div class="accordion-content">
+                <div class="form-group">
+                  <label>Nome</label>
+                  <input type="text" id="manualContactName" placeholder="Nome do contato">
+                </div>
+                <div class="form-group">
+                  <label>Telefone (com DDI)</label>
+                  <input type="text" id="manualContactPhone" placeholder="+5511999999999">
+                </div>
+                <div class="form-group">
+                  <label>Tags/Grupo</label>
+                  <input type="text" id="manualContactTags" placeholder="Ex: cliente, vip, lead">
+                </div>
+                <button class="btn btn-primary" id="addManualContact">
+                  ➕ Adicionar Contato
+                </button>
               </div>
             </div>
           </section>
@@ -352,35 +584,6 @@
         </footer>
       </div>
     </div><!-- End screenMain -->
-
-    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <!-- MODAL: RECONFIGURAR API KEY -->
-    <!-- ═══════════════════════════════════════════════════════════════════════════ -->
-    <div id="modalReconfig" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content">
-        <h3 class="modal-title">🔐 Reconfigurar API Key</h3>
-        <p class="hint">Digite a chave de licença para acessar</p>
-        
-        <div class="input-group">
-          <input 
-            type="password" 
-            id="reconfigLicenseKey" 
-            placeholder="Chave de licença..."
-            autocomplete="off"
-          />
-        </div>
-        
-        <p id="reconfigError" class="error-msg hidden">
-          ❌ Chave inválida
-        </p>
-        
-        <div class="modal-actions">
-          <button id="btnCancelReconfig" class="btn-secondary" type="button">Cancelar</button>
-          <button id="btnConfirmReconfig" class="btn-primary" type="button">OK</button>
-        </div>
-      </div>
-    </div>
 
   </div><!-- End wrap -->
 

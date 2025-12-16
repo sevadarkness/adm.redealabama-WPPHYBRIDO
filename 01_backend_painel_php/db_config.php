@@ -63,3 +63,23 @@ if (!function_exists('get_db_connection')) {
         return $pdo;
     }
 }
+
+// Auto-migration: executa migrations pendentes automaticamente
+// Pode ser desabilitado definindo ALABAMA_AUTO_MIGRATE=0
+if (getenv('ALABAMA_AUTO_MIGRATE') !== '0') {
+    require_once __DIR__ . '/database/auto_migrate.php';
+    try {
+        $migrationResults = auto_migrate_run($pdo);
+        // Log dos resultados apenas em modo debug
+        if (Config::debug() && function_exists('log_app_event')) {
+            foreach ($migrationResults as $result) {
+                log_app_event('auto_migrate', $result['status'], $result);
+            }
+        }
+    } catch (Throwable $e) {
+        // Silently fail - não quebra o sistema se migration falhar
+        if (function_exists('log_app_event')) {
+            log_app_event('auto_migrate', 'error', ['message' => $e->getMessage()]);
+        }
+    }
+}

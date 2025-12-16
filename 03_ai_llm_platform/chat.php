@@ -135,6 +135,19 @@ if ($contactPhone === '' && $chatTitle !== '') {
     }
 }
 
+// --- Sanitização contra Prompt Injection ---
+function sanitize_for_prompt(string $text, int $maxLen = 500): string {
+    // Remove caracteres de controle
+    $clean = preg_replace('/[\x00-\x1F\x7F]/u', '', $text);
+    // Remove padrões que parecem instruções
+    $clean = preg_replace('/\b(ignore|disregard|forget|override|system|instruction|prompt)\b/i', '[FILTERED]', $clean);
+    // Trunca
+    if (mb_strlen($clean) > $maxLen) {
+        $clean = mb_substr($clean, 0, $maxLen) . '...';
+    }
+    return $clean;
+}
+
 // --- Contexto do painel (CRM/catalogo/config) ---
 $panelContext = '';
 $botSystemPrompt = '';
@@ -171,10 +184,10 @@ try {
             $lead = $stmtLead->fetch(PDO::FETCH_ASSOC) ?: null;
             if ($lead) {
                 $ctxParts[] = 'LEAD:';
-                if (!empty($lead['nome_cliente'])) $ctxParts[] = '- Nome: ' . (string)$lead['nome_cliente'];
+                if (!empty($lead['nome_cliente'])) $ctxParts[] = '- Nome: ' . sanitize_for_prompt((string)$lead['nome_cliente'], 100);
                 if (!empty($lead['status'])) $ctxParts[] = '- Status: ' . (string)$lead['status'];
                 if (!empty($lead['vendedor_responsavel_id'])) $ctxParts[] = '- Vendedor ID: ' . (string)$lead['vendedor_responsavel_id'];
-                if (!empty($lead['observacao'])) $ctxParts[] = '- Obs: ' . mb_substr((string)$lead['observacao'], 0, 300);
+                if (!empty($lead['observacao'])) $ctxParts[] = '- Obs: ' . sanitize_for_prompt((string)$lead['observacao'], 300);
             }
         } catch (Throwable $e) {
             // ignore

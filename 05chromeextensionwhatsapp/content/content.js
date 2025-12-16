@@ -5009,13 +5009,17 @@ ${transcript || '(não consegui ler mensagens)'}
     
     dropdown.innerHTML = html;
     
-    function renderQuickReplies() {
+    async function renderQuickReplies() {
       const listDiv = dropdown.querySelector('#quickRepliesList');
       
-      if (quickReplies.length === 0) {
+      // Reload fresh data from storage
+      const data = await chrome.storage.local.get(['quickReplies']);
+      const currentReplies = data.quickReplies || [];
+      
+      if (currentReplies.length === 0) {
         listDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 11px;">Nenhuma resposta rápida cadastrada.</p>';
       } else {
-        listDiv.innerHTML = quickReplies.map((qr, idx) => `
+        listDiv.innerHTML = currentReplies.map((qr, idx) => `
           <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-start;">
             <div style="flex: 1;">
               <strong style="color: #52c41a;">/${qr.trigger}</strong>
@@ -5029,22 +5033,29 @@ ${transcript || '(não consegui ler mensagens)'}
         
         // Add remove handlers
         listDiv.querySelectorAll('.remove-quick-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
+          btn.addEventListener('click', async () => {
             const idx = parseInt(btn.dataset.idx);
-            quickReplies.splice(idx, 1);
-            chrome.storage.local.set({ quickReplies }, () => {
-              renderQuickReplies();
-              const statusDiv = dropdown.querySelector('#quickStatus');
+            
+            // Get fresh data before modifying
+            const freshData = await chrome.storage.local.get(['quickReplies']);
+            const freshReplies = freshData.quickReplies || [];
+            freshReplies.splice(idx, 1);
+            
+            await chrome.storage.local.set({ quickReplies: freshReplies });
+            
+            await renderQuickReplies();
+            const statusDiv = dropdown.querySelector('#quickStatus');
+            if (statusDiv) {
               statusDiv.textContent = '✅ Resposta removida!';
               statusDiv.className = 'status ok';
               setTimeout(() => statusDiv.className = 'status', 3000);
-            });
+            }
           });
         });
       }
     }
     
-    renderQuickReplies();
+    await renderQuickReplies();
     
     const addBtn = dropdown.querySelector('#addQuick');
     const statusDiv = dropdown.querySelector('#quickStatus');
@@ -5059,15 +5070,18 @@ ${transcript || '(não consegui ler mensagens)'}
         return;
       }
       
-      quickReplies.push({ trigger, response });
+      // Get fresh data before adding
+      const data = await chrome.storage.local.get(['quickReplies']);
+      const currentReplies = data.quickReplies || [];
+      currentReplies.push({ trigger, response });
       
-      chrome.storage.local.set({ quickReplies }, () => {
-        statusDiv.textContent = '✅ Resposta rápida adicionada!';
-        statusDiv.className = 'status ok';
-        dropdown.querySelector('#quickTrigger').value = '';
-        dropdown.querySelector('#quickResponse').value = '';
-        renderQuickReplies();
-      });
+      await chrome.storage.local.set({ quickReplies: currentReplies });
+      
+      statusDiv.textContent = '✅ Resposta rápida adicionada!';
+      statusDiv.className = 'status ok';
+      dropdown.querySelector('#quickTrigger').value = '';
+      dropdown.querySelector('#quickResponse').value = '';
+      await renderQuickReplies();
     });
   }
   
@@ -5550,12 +5564,17 @@ ${transcript || '(não consegui ler mensagens)'}
     dropdown.querySelector('#toneClosing').value = knowledge.tone?.closing || '';
     
     // Render products
-    function renderProducts() {
+    async function renderProducts() {
       const container = dropdown.querySelector('#productsList');
-      if (products.length === 0) {
+      
+      // Get fresh data
+      const freshKnowledge = await getKnowledge();
+      const currentProducts = freshKnowledge.products || [];
+      
+      if (currentProducts.length === 0) {
         container.innerHTML = '<p style="color: var(--text-muted); font-size: 10px;">Nenhum produto</p>';
       } else {
-        container.innerHTML = products.map((p, idx) => `
+        container.innerHTML = currentProducts.map((p, idx) => `
           <div style="background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: flex-start; font-size: 10px;">
             <div style="flex: 1;">
               <strong>${p.name}</strong>
@@ -5567,23 +5586,33 @@ ${transcript || '(não consegui ler mensagens)'}
         `).join('');
         
         container.querySelectorAll('.remove-prod').forEach(btn => {
-          btn.addEventListener('click', () => {
-            products.splice(parseInt(btn.dataset.idx), 1);
-            knowledge.products = products;
-            saveKnowledge(knowledge);
-            renderProducts();
+          btn.addEventListener('click', async () => {
+            const idx = parseInt(btn.dataset.idx);
+            
+            // Get fresh data before removing
+            const k = await getKnowledge();
+            const prods = k.products || [];
+            prods.splice(idx, 1);
+            k.products = prods;
+            await saveKnowledge(k);
+            await renderProducts();
           });
         });
       }
     }
     
     // Render FAQs
-    function renderFaqs() {
+    async function renderFaqs() {
       const container = dropdown.querySelector('#faqsList');
-      if (faqs.length === 0) {
+      
+      // Get fresh data
+      const freshKnowledge = await getKnowledge();
+      const currentFaqs = freshKnowledge.faqs || [];
+      
+      if (currentFaqs.length === 0) {
         container.innerHTML = '<p style="color: var(--text-muted); font-size: 10px;">Nenhuma FAQ</p>';
       } else {
-        container.innerHTML = faqs.map((f, idx) => `
+        container.innerHTML = currentFaqs.map((f, idx) => `
           <div style="background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: flex-start; font-size: 10px;">
             <div style="flex: 1;">
               <strong>${f.question}</strong>
@@ -5594,18 +5623,23 @@ ${transcript || '(não consegui ler mensagens)'}
         `).join('');
         
         container.querySelectorAll('.remove-faq').forEach(btn => {
-          btn.addEventListener('click', () => {
-            faqs.splice(parseInt(btn.dataset.idx), 1);
-            knowledge.faqs = faqs;
-            saveKnowledge(knowledge);
-            renderFaqs();
+          btn.addEventListener('click', async () => {
+            const idx = parseInt(btn.dataset.idx);
+            
+            // Get fresh data before removing
+            const k = await getKnowledge();
+            const fqs = k.faqs || [];
+            fqs.splice(idx, 1);
+            k.faqs = fqs;
+            await saveKnowledge(k);
+            await renderFaqs();
           });
         });
       }
     }
     
-    renderProducts();
-    renderFaqs();
+    await renderProducts();
+    await renderFaqs();
     
     const saveBtn = dropdown.querySelector('#saveTraining');
     const syncBtn = dropdown.querySelector('#syncTraining');
@@ -5614,7 +5648,7 @@ ${transcript || '(não consegui ler mensagens)'}
     const statusDiv = dropdown.querySelector('#trainingStatus');
     
     // Add product
-    addProductBtn.addEventListener('click', () => {
+    addProductBtn.addEventListener('click', async () => {
       const name = dropdown.querySelector('#prodName').value.trim();
       const price = dropdown.querySelector('#prodPrice').value.trim();
       const description = dropdown.querySelector('#prodDesc').value.trim();
@@ -5625,14 +5659,17 @@ ${transcript || '(não consegui ler mensagens)'}
         return;
       }
       
-      products.push({ id: `prod_${Date.now()}`, name, price, description });
-      knowledge.products = products;
-      saveKnowledge(knowledge);
+      // Get fresh data before adding
+      const k = await getKnowledge();
+      const prods = k.products || [];
+      prods.push({ id: `prod_${Date.now()}`, name, price, description });
+      k.products = prods;
+      await saveKnowledge(k);
       
       dropdown.querySelector('#prodName').value = '';
       dropdown.querySelector('#prodPrice').value = '';
       dropdown.querySelector('#prodDesc').value = '';
-      renderProducts();
+      await renderProducts();
       
       statusDiv.textContent = '✅ Produto adicionado!';
       statusDiv.className = 'status ok';
@@ -5640,7 +5677,7 @@ ${transcript || '(não consegui ler mensagens)'}
     });
     
     // Add FAQ
-    addFaqBtn.addEventListener('click', () => {
+    addFaqBtn.addEventListener('click', async () => {
       const question = dropdown.querySelector('#faqQuestion').value.trim();
       const answer = dropdown.querySelector('#faqAnswer').value.trim();
       
@@ -5650,13 +5687,16 @@ ${transcript || '(não consegui ler mensagens)'}
         return;
       }
       
-      faqs.push({ id: `faq_${Date.now()}`, question, answer });
-      knowledge.faqs = faqs;
-      saveKnowledge(knowledge);
+      // Get fresh data before adding
+      const k = await getKnowledge();
+      const fqs = k.faqs || [];
+      fqs.push({ id: `faq_${Date.now()}`, question, answer });
+      k.faqs = fqs;
+      await saveKnowledge(k);
       
       dropdown.querySelector('#faqQuestion').value = '';
       dropdown.querySelector('#faqAnswer').value = '';
-      renderFaqs();
+      await renderFaqs();
       
       statusDiv.textContent = '✅ FAQ adicionada!';
       statusDiv.className = 'status ok';
@@ -5829,12 +5869,27 @@ ${transcript || '(não consegui ler mensagens)'}
           return;
         }
         
-        // Schedule campaign (simplified - just show message for now)
-        statusDiv.textContent = `⏰ Campanha agendada para ${scheduleDate} às ${scheduleTime}`;
-        statusDiv.className = 'status ok';
+        // TODO: Implement actual scheduling with chrome.alarms API
+        // For now, save to scheduled campaigns for manual execution
+        const scheduledFor = `${scheduleDate} ${scheduleTime}`;
+        const campaignData = {
+          id: name || `Campanha_${Date.now()}`,
+          message,
+          numbers,
+          interval,
+          scheduledFor,
+          status: 'scheduled',
+          createdAt: new Date().toISOString()
+        };
         
-        // In a real implementation, would save to scheduled campaigns
-        // and use chrome.alarms or background script to execute later
+        chrome.storage.local.get(['scheduled_campaigns'], (res) => {
+          const scheduled = res.scheduled_campaigns || [];
+          scheduled.push(campaignData);
+          chrome.storage.local.set({ scheduled_campaigns: scheduled });
+        });
+        
+        statusDiv.textContent = `⏰ Campanha salva para execução em ${scheduleDate} às ${scheduleTime}. Use o popup para gerenciar campanhas agendadas.`;
+        statusDiv.className = 'status ok';
         return;
       }
       

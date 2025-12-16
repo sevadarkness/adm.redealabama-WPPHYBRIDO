@@ -93,6 +93,15 @@ if (session_status() === PHP_SESSION_NONE) {
     }
 
     session_start();
+    
+    // Aplicar security headers básicos (se não estiverem no modo CLI e headers ainda não enviados)
+    if (php_sapi_name() !== 'cli' && !headers_sent()) {
+        $securityHeadersFile = __DIR__ . '/security_headers.php';
+        if (is_file($securityHeadersFile)) {
+            define('ALABAMA_CUSTOM_CSP', true); // Prevenir que security_headers.php defina CSP duplicado
+            require_once $securityHeadersFile;
+        }
+    }
 
     // Guard simples baseado em User-Agent (mitiga hijack mais grosseiro)
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';

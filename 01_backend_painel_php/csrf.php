@@ -19,17 +19,32 @@ declare(strict_types=1);
 require_once __DIR__ . '/session_bootstrap.php';
 
 const ALABAMA_CSRF_SESSION_KEY = '_alabama_csrf_token';
+const ALABAMA_CSRF_TTL = 3600; // 1 hora
 
 /**
  * Gera (se necessário) e retorna o token CSRF da sessão.
+ * Token expira após ALABAMA_CSRF_TTL segundos.
  */
 function csrf_token(): string
 {
-    if (!isset($_SESSION[ALABAMA_CSRF_SESSION_KEY]) || !is_string($_SESSION[ALABAMA_CSRF_SESSION_KEY])) {
-        // 32 bytes = 64 chars hex
-        $_SESSION[ALABAMA_CSRF_SESSION_KEY] = bin2hex(random_bytes(32));
+    $now = time();
+    $tokenData = $_SESSION[ALABAMA_CSRF_SESSION_KEY] ?? null;
+    
+    // Verificar se token existe e não expirou
+    if (is_array($tokenData) && isset($tokenData['token'], $tokenData['created_at'])) {
+        if (($now - $tokenData['created_at']) < ALABAMA_CSRF_TTL) {
+            return $tokenData['token'];
+        }
     }
-    return $_SESSION[ALABAMA_CSRF_SESSION_KEY];
+    
+    // Gerar novo token
+    $newToken = bin2hex(random_bytes(32));
+    $_SESSION[ALABAMA_CSRF_SESSION_KEY] = [
+        'token' => $newToken,
+        'created_at' => $now,
+    ];
+    
+    return $newToken;
 }
 
 /**
@@ -46,19 +61,29 @@ function csrf_field(): string
  */
 function csrf_validate_from_array(array $source): bool
 {
-    $expected = $_SESSION[ALABAMA_CSRF_SESSION_KEY] ?? null;
-    if (!is_string($expected) || $expected === '') {
+    $tokenData = $_SESSION[ALABAMA_CSRF_SESSION_KEY] ?? null;
+    
+    // Verificar se token existe
+    if (!is_array($tokenData) || !isset($tokenData['token'], $tokenData['created_at'])) {
         return false;
     }
-
+    
+    // Verificar TTL
+    $now = time();
+    if (($now - $tokenData['created_at']) >= ALABAMA_CSRF_TTL) {
+        // Token expirado - regenerar na próxima chamada de csrf_token()
+        unset($_SESSION[ALABAMA_CSRF_SESSION_KEY]);
+        return false;
+    }
+    
+    $expected = $tokenData['token'];
+    
     $provided = null;
-
     if (isset($source['_csrf_token']) && is_string($source['_csrf_token'])) {
         $provided = $source['_csrf_token'];
     }
 
     if ($provided === null) {
-        // Permite uso via cabeçalho X-CSRF-Token em chamadas JSON.
         $header = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
         if (is_string($header) && $header !== '') {
             $provided = $header;

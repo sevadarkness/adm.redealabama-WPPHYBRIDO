@@ -150,6 +150,16 @@ if (!$normalized) {
     respond(['ok' => false, 'error' => 'Nenhum telefone válido encontrado em recipients.'], 400);
 }
 
+$maxRecipients = (int)(getenv('ALABAMA_MAX_CAMPAIGN_RECIPIENTS') ?: 1000);
+if (count($normalized) > $maxRecipients) {
+    respond([
+        'ok' => false, 
+        'error' => "Número máximo de destinatários excedido. Limite: {$maxRecipients}",
+        'max_allowed' => $maxRecipients,
+        'received' => count($normalized)
+    ], 400);
+}
+
 try {
     $pdo->beginTransaction();
 

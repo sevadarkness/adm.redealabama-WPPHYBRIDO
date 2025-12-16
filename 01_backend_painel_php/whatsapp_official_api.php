@@ -66,56 +66,97 @@ function whatsapp_api_send_text(string $toPhoneE164, string $text, array $meta =
         ],
     ];
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER     => (function() use ($token) {
-            $sec = __DIR__ . '/app/Support/Security.php';
-            if (file_exists($sec)) {
-                require_once $sec;
+    $maxRetries = (int)(getenv('WHATSAPP_API_MAX_RETRIES') ?: 3);
+    $retryDelayMs = (int)(getenv('WHATSAPP_API_RETRY_DELAY_MS') ?: 1000);
+    
+    $lastError = null;
+    $lastStatus = null;
+    
+    for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => (function() use ($token) {
+                $sec = __DIR__ . '/app/Support/Security.php';
+                if (file_exists($sec)) {
+                    require_once $sec;
+                }
+                $auth = class_exists('Security') ? \Security::build_bearer_header($token) : ('Authorization: Bearer ' . $token);
+                return [
+                    'Content-Type: application/json',
+                    $auth,
+                ];
+            })(),
+            CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_UNICODE),
+            CURLOPT_TIMEOUT        => (int)($WHATSAPP_API['timeout'] ?? 15),
+        ]);
+
+        $body     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
+
+        if ($body === false) {
+            $lastError = 'Erro cURL: ' . $curlErr;
+            $lastStatus = $httpCode ?: null;
+            
+            // Retry em caso de erro de conexão
+            if ($attempt < $maxRetries) {
+                usleep($retryDelayMs * 1000);
+                continue;
             }
-            $auth = class_exists('Security') ? \Security::build_bearer_header($token) : ('Authorization: Bearer ' . $token);
+            
             return [
-                'Content-Type: application/json',
-                $auth,
+                'ok'       => false,
+                'status'   => $lastStatus,
+                'error'    => $lastError,
+                'response' => null,
+                'attempts' => $attempt,
             ];
-        })(),
-        CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_UNICODE),
-        CURLOPT_TIMEOUT        => (int)($WHATSAPP_API['timeout'] ?? 15),
-    ]);
+        }
 
-    $body     = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlErr  = curl_error($ch);
-    curl_close($ch);
-
-    if ($body === false) {
-        return [
-            'ok'       => false,
-            'status'   => $httpCode ?: null,
-            'error'    => 'Erro cURL: ' . $curlErr,
-            'response' => null,
-        ];
+        $decoded = json_decode($body, true);
+        
+        // Sucesso
+        if ($httpCode >= 200 && $httpCode < 300) {
+            return [
+                'ok'       => true,
+                'status'   => $httpCode,
+                'error'    => null,
+                'response' => is_array($decoded) ? $decoded : $body,
+                'attempts' => $attempt,
+            ];
+        }
+        
+        // Erros que não devem ser retried (4xx exceto 429)
+        if ($httpCode >= 400 && $httpCode < 500 && $httpCode !== 429) {
+            return [
+                'ok'       => false,
+                'status'   => $httpCode,
+                'error'    => is_array($decoded) ? ($decoded['error']['message'] ?? 'Erro da API WhatsApp.') : 'Resposta não-JSON da API.',
+                'response' => is_array($decoded) ? $decoded : $body,
+                'attempts' => $attempt,
+            ];
+        }
+        
+        // Erros 5xx ou 429 - retry
+        $lastError = is_array($decoded) ? ($decoded['error']['message'] ?? 'Erro HTTP ' . $httpCode) : 'Erro HTTP ' . $httpCode;
+        $lastStatus = $httpCode;
+        
+        if ($attempt < $maxRetries) {
+            // Backoff exponencial para 429
+            $delay = $httpCode === 429 ? $retryDelayMs * $attempt : $retryDelayMs;
+            usleep($delay * 1000);
+        }
     }
-
-    $decoded = json_decode($body, true);
-    if (!is_array($decoded)) {
-        return [
-            'ok'       => $httpCode >= 200 && $httpCode < 300,
-            'status'   => $httpCode,
-            'error'    => $httpCode >= 200 && $httpCode < 300 ? null : 'Resposta não-JSON da API.',
-            'response' => $body,
-        ];
-    }
-
-    $ok = $httpCode >= 200 && $httpCode < 300;
-
+    
     return [
-        'ok'       => $ok,
-        'status'   => $httpCode,
-        'error'    => $ok ? null : ($decoded['error']['message'] ?? 'Erro desconhecido da API WhatsApp.'),
-        'response' => $decoded,
+        'ok'       => false,
+        'status'   => $lastStatus,
+        'error'    => $lastError ?? 'Falha após ' . $maxRetries . ' tentativas.',
+        'response' => null,
+        'attempts' => $maxRetries,
     ];
 }
 

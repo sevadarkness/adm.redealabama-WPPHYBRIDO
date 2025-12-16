@@ -996,9 +996,104 @@
   }
 
   // -------------------------
+  // Knowledge Management (Training Tab)
+  // -------------------------
+  const defaultKnowledge = {
+    business: {
+      name: '',
+      description: '',
+      segment: '',
+      hours: ''
+    },
+    policies: {
+      payment: '',
+      delivery: '',
+      returns: ''
+    },
+    products: [],
+    faq: [],
+    cannedReplies: [],
+    documents: [],
+    tone: {
+      style: 'informal',
+      useEmojis: true,
+      greeting: '',
+      closing: ''
+    }
+  };
+
+  const defaultTrainingStats = {
+    good: 0,
+    bad: 0,
+    corrected: 0
+  };
+
+  async function getKnowledge() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['whl_knowledge'], (res) => {
+        resolve(res?.whl_knowledge || defaultKnowledge);
+      });
+    });
+  }
+
+  async function saveKnowledge(knowledge) {
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ 'whl_knowledge': knowledge }, () => {
+        resolve();
+      });
+    });
+  }
+
+  async function getTrainingStats() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['whl_training_stats'], (res) => {
+        resolve(res?.whl_training_stats || defaultTrainingStats);
+      });
+    });
+  }
+
+  async function saveTrainingStats(stats) {
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ 'whl_training_stats': stats }, () => {
+        resolve();
+      });
+    });
+  }
+
+  function parseProductsCSV(csvText) {
+    const lines = csvText.split('\n').filter(l => l.trim());
+    const products = [];
+    for (const line of lines.slice(1)) { // skip header
+      const [name, price, stock, description] = line.split(',').map(s => s.trim());
+      if (name) {
+        products.push({
+          id: Date.now() + Math.random(),
+          name,
+          price: parseFloat(price) || 0,
+          stock: parseInt(stock) || 0,
+          description: description || ''
+        });
+      }
+    }
+    return products;
+  }
+
+  function checkCannedReply(message, cannedReplies) {
+    const msgLower = message.toLowerCase();
+    for (const canned of cannedReplies) {
+      for (const trigger of canned.triggers) {
+        if (msgLower.includes(trigger.toLowerCase())) {
+          return canned.reply;
+        }
+      }
+    }
+    return null;
+  }
+
+  // -------------------------
   // AI prompting
   // -------------------------
-  function buildSystemPrompt({ persona, businessContext }) {
+  async function buildSystemPrompt({ persona, businessContext }) {
     const base =
 `Você é um assistente de atendimento no WhatsApp.
 Objetivo: responder rápido, claro, profissional e humano, sem inventar informações.
@@ -1012,10 +1107,53 @@ Regras:
     const p = safeText(persona).trim();
     const ctx = safeText(businessContext).trim();
 
+    // Load knowledge from training tab
+    const knowledge = await getKnowledge();
+    
+    let knowledgeText = '';
+    
+    if (knowledge.business.name) {
+      knowledgeText += `\nNEGÓCIO: ${knowledge.business.name}`;
+      if (knowledge.business.description) knowledgeText += `\n${knowledge.business.description}`;
+      if (knowledge.business.segment) knowledgeText += `\nSegmento: ${knowledge.business.segment}`;
+      if (knowledge.business.hours) knowledgeText += `\nHorário: ${knowledge.business.hours}`;
+    }
+    
+    if (knowledge.products.length) {
+      knowledgeText += `\n\nPRODUTOS DISPONÍVEIS:`;
+      for (const p of knowledge.products.slice(0, 20)) {
+        const stockText = p.stock > 0 ? `${p.stock} em estoque` : 'ESGOTADO';
+        knowledgeText += `\n- ${p.name}: R$${p.price.toFixed(2)} (${stockText})`;
+        if (p.description) knowledgeText += ` - ${p.description}`;
+      }
+    }
+    
+    if (knowledge.faq.length) {
+      knowledgeText += `\n\nFAQ:`;
+      for (const f of knowledge.faq.slice(0, 10)) {
+        knowledgeText += `\nP: ${f.question}\nR: ${f.answer}`;
+      }
+    }
+    
+    if (knowledge.policies.payment || knowledge.policies.delivery || knowledge.policies.returns) {
+      knowledgeText += `\n\nPOLÍTICAS:`;
+      if (knowledge.policies.payment) knowledgeText += `\nPagamento: ${knowledge.policies.payment}`;
+      if (knowledge.policies.delivery) knowledgeText += `\nEntrega: ${knowledge.policies.delivery}`;
+      if (knowledge.policies.returns) knowledgeText += `\nTrocas: ${knowledge.policies.returns}`;
+    }
+    
+    if (knowledge.tone.style) {
+      knowledgeText += `\n\nTOM: Use linguagem ${knowledge.tone.style}.`;
+      if (knowledge.tone.useEmojis) knowledgeText += ` Use emojis moderadamente.`;
+      if (knowledge.tone.greeting) knowledgeText += ` Saudação: "${knowledge.tone.greeting}"`;
+      if (knowledge.tone.closing) knowledgeText += ` Despedida: "${knowledge.tone.closing}"`;
+    }
+
     return [
       base,
       p ? `\nPERSONA (regras extras):\n${p}` : '',
       ctx ? `\nCONTEXTO DO NEGÓCIO (conhecimento):\n${ctx}` : '',
+      knowledgeText
     ].filter(Boolean).join('\n');
   }
 
@@ -1056,7 +1194,7 @@ Regras:
 
   async function aiChat({ mode, extraInstruction, transcript, memory, chatTitle, examplesOverride, contextOverride }) {
     const settings = await getSettingsCached();
-    const systemBase = buildSystemPrompt({ persona: settings.persona, businessContext: settings.businessContext });
+    const systemBase = await buildSystemPrompt({ persona: settings.persona, businessContext: settings.businessContext });
     const system = systemBase + (contextOverride?.additions ? `\n\nCONTEXTO (Servidor):\n${safeText(contextOverride.additions)}` : '');
 
     const memText = memory?.summary ? `\n\nMEMÓRIA (Leão) deste contato:\n${memory.summary}` : '';
@@ -1112,7 +1250,7 @@ Regras:
 
   async function aiMemoryFromTranscript(transcript) {
     const settings = await getSettingsCached();
-    const system = buildSystemPrompt({ persona: settings.persona, businessContext: settings.businessContext }) +
+    const system = await buildSystemPrompt({ persona: settings.persona, businessContext: settings.businessContext }) +
       `\n\nVocê agora cria uma memória curta (perfil do contato + contexto) para futuras conversas.`;
 
     const user =
@@ -1438,6 +1576,70 @@ ${transcript || '(não consegui ler mensagens)'}
         font-size: 11px;
         color: var(--text);
       }
+
+      /* Training Tab Styles */
+      .knowledge-section {
+        margin: 12px 0;
+        padding: 12px;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px;
+        background: rgba(5,7,15,0.35);
+      }
+      .knowledge-section label {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        display: block;
+      }
+      .products-list, .faq-list, .canned-list, .docs-list {
+        max-height: 150px;
+        overflow: auto;
+        margin: 8px 0;
+      }
+      .product-item, .faq-item, .canned-item, .doc-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 10px;
+        margin: 4px 0;
+        font-size: 11px;
+      }
+      .product-item .price { color: var(--ok); }
+      .product-item .stock { color: var(--muted); }
+      .product-item .stock.out { color: var(--danger); }
+      .test-result {
+        margin-top: 10px;
+        padding: 12px;
+        background: rgba(5,7,15,0.55);
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.1);
+      }
+      .stats-box {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        font-size: 12px;
+      }
+      .stats-box div {
+        padding: 8px;
+        background: rgba(5,7,15,0.55);
+        border-radius: 10px;
+      }
+      .item-content {
+        flex: 1;
+        margin-right: 8px;
+      }
+      .item-actions {
+        display: flex;
+        gap: 4px;
+      }
+      .item-actions button {
+        padding: 4px 8px;
+        font-size: 10px;
+        min-width: unset;
+      }
     `;
     shadow.appendChild(style);
 
@@ -1464,6 +1666,7 @@ ${transcript || '(não consegui ler mensagens)'}
           <div class="tab active" data-tab="chat">Chatbot</div>
           <div class="tab" data-tab="camp">Campanhas</div>
           <div class="tab" data-tab="cont">Contatos</div>
+          <div class="tab" data-tab="training">🧠 IA</div>
         </div>
 
         <div class="sec active" data-sec="chat">
@@ -1598,6 +1801,126 @@ ${transcript || '(não consegui ler mensagens)'}
           <textarea id="contOut" placeholder="Saída..."></textarea>
 
           <div class="status" id="contStatus"></div>
+        </div>
+
+        <div class="sec" data-sec="training">
+          <div class="note">
+            <b>Treinamento de IA:</b> Configure conhecimento do negócio para respostas mais inteligentes e personalizadas.
+          </div>
+
+          <!-- Sobre o Negócio -->
+          <div class="knowledge-section">
+            <label>🏢 Sobre o Negócio</label>
+            <textarea id="bizName" placeholder="Nome da empresa"></textarea>
+            <textarea id="bizDescription" placeholder="Descrição do negócio, o que vendem, diferenciais..."></textarea>
+            <input id="bizSegment" placeholder="Segmento (ex: Varejo, Serviços, Tech)">
+            <input id="bizHours" placeholder="Horário de atendimento (ex: 9h às 18h)">
+          </div>
+
+          <!-- Políticas -->
+          <div class="knowledge-section">
+            <label>📋 Políticas</label>
+            <textarea id="policyPayment" placeholder="Formas de pagamento aceitas..."></textarea>
+            <textarea id="policyDelivery" placeholder="Política de entrega..."></textarea>
+            <textarea id="policyReturns" placeholder="Política de trocas e devoluções..."></textarea>
+          </div>
+
+          <!-- Catálogo de Produtos -->
+          <div class="knowledge-section">
+            <label>📦 Catálogo de Produtos</label>
+            <input type="file" id="productsFile" accept=".csv,.txt">
+            <div class="note">Formato CSV: nome,preço,estoque,descrição</div>
+            <div id="productsList" class="products-list"></div>
+            <button id="addProductBtn">+ Adicionar Produto Manual</button>
+          </div>
+
+          <!-- FAQ -->
+          <div class="knowledge-section">
+            <label>❓ FAQ - Perguntas Frequentes</label>
+            <div id="faqList" class="faq-list"></div>
+            <div class="row">
+              <input id="faqQuestion" placeholder="Pergunta">
+              <input id="faqAnswer" placeholder="Resposta">
+              <button id="addFaqBtn">+</button>
+            </div>
+          </div>
+
+          <!-- Respostas Rápidas -->
+          <div class="knowledge-section">
+            <label>💬 Respostas Rápidas</label>
+            <div class="note">Defina gatilhos (palavras-chave) e respostas automáticas</div>
+            <div id="cannedList" class="canned-list"></div>
+            <div class="row">
+              <input id="cannedTriggers" placeholder="Gatilhos (separados por vírgula)">
+              <textarea id="cannedReply" placeholder="Resposta"></textarea>
+              <button id="addCannedBtn">+</button>
+            </div>
+          </div>
+
+          <!-- Upload de Documentos -->
+          <div class="knowledge-section">
+            <label>📄 Documentos</label>
+            <input type="file" id="docsFile" accept=".pdf,.txt,.md" multiple>
+            <div class="note">Upload de catálogos, manuais, políticas em PDF ou TXT</div>
+            <div id="docsList" class="docs-list"></div>
+          </div>
+
+          <!-- Tom de Voz -->
+          <div class="knowledge-section">
+            <label>🗣️ Tom de Voz</label>
+            <select id="toneStyle">
+              <option value="formal">Formal</option>
+              <option value="informal" selected>Informal</option>
+              <option value="friendly">Amigável</option>
+              <option value="professional">Profissional</option>
+            </select>
+            <div class="checkline">
+              <input type="checkbox" id="toneEmojis" checked>
+              <label>Usar emojis nas respostas</label>
+            </div>
+            <input id="toneGreeting" placeholder="Saudação padrão (ex: Olá! 👋)">
+            <input id="toneClosing" placeholder="Despedida padrão (ex: Qualquer dúvida, estou aqui!)">
+          </div>
+
+          <!-- Testar IA -->
+          <div class="knowledge-section">
+            <label>🧪 Testar IA</label>
+            <div class="row">
+              <textarea id="testQuestion" placeholder="Digite uma pergunta de teste..."></textarea>
+              <button id="testAiBtn" class="primary">Testar</button>
+            </div>
+            <div id="testResult" class="test-result" style="display:none;">
+              <label>Resposta da IA:</label>
+              <div id="testAnswer"></div>
+              <div class="btns">
+                <button id="testGoodBtn">✅ Boa</button>
+                <button id="testBadBtn">❌ Ruim</button>
+                <button id="testCorrectBtn">✏️ Corrigir</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Estatísticas -->
+          <div class="knowledge-section">
+            <label>📊 Estatísticas de Treinamento</label>
+            <div id="trainingStats" class="stats-box">
+              <div>✅ Respostas boas: <span id="statGood">0</span></div>
+              <div>❌ Respostas ruins: <span id="statBad">0</span></div>
+              <div>✏️ Correções: <span id="statCorrected">0</span></div>
+              <div>📦 Produtos: <span id="statProducts">0</span></div>
+              <div>❓ FAQs: <span id="statFaqs">0</span></div>
+            </div>
+          </div>
+
+          <!-- Botões de Ação -->
+          <div class="btns">
+            <button id="saveKnowledgeBtn" class="primary">💾 Salvar Conhecimento</button>
+            <button id="exportKnowledgeBtn">📤 Exportar JSON</button>
+            <button id="importKnowledgeBtn">📥 Importar JSON</button>
+            <button id="clearKnowledgeBtn" class="danger">🗑️ Limpar Tudo</button>
+          </div>
+          <input type="file" id="importFile" accept=".json" style="display:none;">
+          <div class="status" id="trainingStatus"></div>
         </div>
       </div>
     `;
@@ -2277,6 +2600,510 @@ ${transcript || '(não consegui ler mensagens)'}
         setContStatus(`Erro: ${e?.message || String(e)}`, 'err');
       }
     });
+
+    // -------------------------
+    // Training tab wiring
+    // -------------------------
+    const trainingStatus = shadow.getElementById('trainingStatus');
+    
+    const bizName = shadow.getElementById('bizName');
+    const bizDescription = shadow.getElementById('bizDescription');
+    const bizSegment = shadow.getElementById('bizSegment');
+    const bizHours = shadow.getElementById('bizHours');
+    
+    const policyPayment = shadow.getElementById('policyPayment');
+    const policyDelivery = shadow.getElementById('policyDelivery');
+    const policyReturns = shadow.getElementById('policyReturns');
+    
+    const productsFile = shadow.getElementById('productsFile');
+    const productsList = shadow.getElementById('productsList');
+    const addProductBtn = shadow.getElementById('addProductBtn');
+    
+    const faqList = shadow.getElementById('faqList');
+    const faqQuestion = shadow.getElementById('faqQuestion');
+    const faqAnswer = shadow.getElementById('faqAnswer');
+    const addFaqBtn = shadow.getElementById('addFaqBtn');
+    
+    const cannedList = shadow.getElementById('cannedList');
+    const cannedTriggers = shadow.getElementById('cannedTriggers');
+    const cannedReply = shadow.getElementById('cannedReply');
+    const addCannedBtn = shadow.getElementById('addCannedBtn');
+    
+    const docsFile = shadow.getElementById('docsFile');
+    const docsList = shadow.getElementById('docsList');
+    
+    const toneStyle = shadow.getElementById('toneStyle');
+    const toneEmojis = shadow.getElementById('toneEmojis');
+    const toneGreeting = shadow.getElementById('toneGreeting');
+    const toneClosing = shadow.getElementById('toneClosing');
+    
+    const testQuestion = shadow.getElementById('testQuestion');
+    const testAiBtn = shadow.getElementById('testAiBtn');
+    const testResult = shadow.getElementById('testResult');
+    const testAnswer = shadow.getElementById('testAnswer');
+    const testGoodBtn = shadow.getElementById('testGoodBtn');
+    const testBadBtn = shadow.getElementById('testBadBtn');
+    const testCorrectBtn = shadow.getElementById('testCorrectBtn');
+    
+    const statGood = shadow.getElementById('statGood');
+    const statBad = shadow.getElementById('statBad');
+    const statCorrected = shadow.getElementById('statCorrected');
+    const statProducts = shadow.getElementById('statProducts');
+    const statFaqs = shadow.getElementById('statFaqs');
+    
+    const saveKnowledgeBtn = shadow.getElementById('saveKnowledgeBtn');
+    const exportKnowledgeBtn = shadow.getElementById('exportKnowledgeBtn');
+    const importKnowledgeBtn = shadow.getElementById('importKnowledgeBtn');
+    const clearKnowledgeBtn = shadow.getElementById('clearKnowledgeBtn');
+    const importFile = shadow.getElementById('importFile');
+    
+    let currentKnowledge = null;
+    let lastTestAnswer = '';
+
+    function setTrainingStatus(msg, kind) {
+      trainingStatus.textContent = msg || '';
+      trainingStatus.classList.remove('ok','err');
+      if (kind === 'ok') trainingStatus.classList.add('ok');
+      if (kind === 'err') trainingStatus.classList.add('err');
+    }
+
+    async function loadKnowledgeUI() {
+      try {
+        currentKnowledge = await getKnowledge();
+        
+        // Business
+        bizName.value = currentKnowledge.business.name || '';
+        bizDescription.value = currentKnowledge.business.description || '';
+        bizSegment.value = currentKnowledge.business.segment || '';
+        bizHours.value = currentKnowledge.business.hours || '';
+        
+        // Policies
+        policyPayment.value = currentKnowledge.policies.payment || '';
+        policyDelivery.value = currentKnowledge.policies.delivery || '';
+        policyReturns.value = currentKnowledge.policies.returns || '';
+        
+        // Tone
+        toneStyle.value = currentKnowledge.tone.style || 'informal';
+        toneEmojis.checked = currentKnowledge.tone.useEmojis !== false;
+        toneGreeting.value = currentKnowledge.tone.greeting || '';
+        toneClosing.value = currentKnowledge.tone.closing || '';
+        
+        // Render lists
+        renderProducts();
+        renderFAQ();
+        renderCannedReplies();
+        renderDocuments();
+        
+        // Update stats
+        await updateStats();
+      } catch (e) {
+        setTrainingStatus(`Erro ao carregar: ${e?.message || String(e)}`, 'err');
+      }
+    }
+
+    function renderProducts() {
+      productsList.innerHTML = '';
+      if (!currentKnowledge.products.length) {
+        productsList.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px;">Nenhum produto cadastrado</div>';
+        return;
+      }
+      currentKnowledge.products.forEach((p, idx) => {
+        const div = document.createElement('div');
+        div.className = 'product-item';
+        const stockClass = p.stock > 0 ? 'stock' : 'stock out';
+        div.innerHTML = `
+          <div class="item-content">
+            <div><b>${p.name}</b></div>
+            <div><span class="price">R$${p.price.toFixed(2)}</span> • <span class="${stockClass}">${p.stock > 0 ? p.stock + ' em estoque' : 'Esgotado'}</span></div>
+            ${p.description ? '<div style="font-size:10px;color:var(--muted);">' + p.description + '</div>' : ''}
+          </div>
+          <div class="item-actions">
+            <button data-idx="${idx}" class="remove-product danger">✕</button>
+          </div>
+        `;
+        productsList.appendChild(div);
+      });
+      
+      shadow.querySelectorAll('.remove-product').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = parseInt(e.target.dataset.idx);
+          currentKnowledge.products.splice(idx, 1);
+          renderProducts();
+          updateStats();
+        });
+      });
+    }
+
+    function renderFAQ() {
+      faqList.innerHTML = '';
+      if (!currentKnowledge.faq.length) {
+        faqList.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px;">Nenhuma FAQ cadastrada</div>';
+        return;
+      }
+      currentKnowledge.faq.forEach((f, idx) => {
+        const div = document.createElement('div');
+        div.className = 'faq-item';
+        div.innerHTML = `
+          <div class="item-content">
+            <div><b>P:</b> ${f.question}</div>
+            <div><b>R:</b> ${f.answer}</div>
+          </div>
+          <div class="item-actions">
+            <button data-idx="${idx}" class="remove-faq danger">✕</button>
+          </div>
+        `;
+        faqList.appendChild(div);
+      });
+      
+      shadow.querySelectorAll('.remove-faq').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = parseInt(e.target.dataset.idx);
+          currentKnowledge.faq.splice(idx, 1);
+          renderFAQ();
+          updateStats();
+        });
+      });
+    }
+
+    function renderCannedReplies() {
+      cannedList.innerHTML = '';
+      if (!currentKnowledge.cannedReplies.length) {
+        cannedList.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px;">Nenhuma resposta rápida cadastrada</div>';
+        return;
+      }
+      currentKnowledge.cannedReplies.forEach((c, idx) => {
+        const div = document.createElement('div');
+        div.className = 'canned-item';
+        div.innerHTML = `
+          <div class="item-content">
+            <div><b>Gatilhos:</b> ${c.triggers.join(', ')}</div>
+            <div><b>Resposta:</b> ${c.reply.slice(0, 80)}${c.reply.length > 80 ? '...' : ''}</div>
+          </div>
+          <div class="item-actions">
+            <button data-idx="${idx}" class="remove-canned danger">✕</button>
+          </div>
+        `;
+        cannedList.appendChild(div);
+      });
+      
+      shadow.querySelectorAll('.remove-canned').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = parseInt(e.target.dataset.idx);
+          currentKnowledge.cannedReplies.splice(idx, 1);
+          renderCannedReplies();
+        });
+      });
+    }
+
+    function renderDocuments() {
+      docsList.innerHTML = '';
+      if (!currentKnowledge.documents.length) {
+        docsList.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px;">Nenhum documento enviado</div>';
+        return;
+      }
+      currentKnowledge.documents.forEach((d, idx) => {
+        const div = document.createElement('div');
+        div.className = 'doc-item';
+        div.innerHTML = `
+          <div class="item-content">
+            <div><b>${d.name}</b></div>
+            <div style="font-size:10px;color:var(--muted);">${d.type} • ${(d.size / 1024).toFixed(1)} KB</div>
+          </div>
+          <div class="item-actions">
+            <button data-idx="${idx}" class="remove-doc danger">✕</button>
+          </div>
+        `;
+        docsList.appendChild(div);
+      });
+      
+      shadow.querySelectorAll('.remove-doc').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idx = parseInt(e.target.dataset.idx);
+          currentKnowledge.documents.splice(idx, 1);
+          renderDocuments();
+        });
+      });
+    }
+
+    async function updateStats() {
+      const stats = await getTrainingStats();
+      statGood.textContent = stats.good || 0;
+      statBad.textContent = stats.bad || 0;
+      statCorrected.textContent = stats.corrected || 0;
+      statProducts.textContent = currentKnowledge.products.length;
+      statFaqs.textContent = currentKnowledge.faq.length;
+    }
+
+    // Event: Products CSV upload
+    productsFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const csvText = ev.target.result;
+          const products = parseProductsCSV(csvText);
+          currentKnowledge.products.push(...products);
+          renderProducts();
+          updateStats();
+          setTrainingStatus(`${products.length} produtos importados ✅`, 'ok');
+        } catch (err) {
+          setTrainingStatus(`Erro ao ler CSV: ${err?.message || String(err)}`, 'err');
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    // Event: Add product manually
+    addProductBtn.addEventListener('click', () => {
+      const name = prompt('Nome do produto:');
+      if (!name) return;
+      const price = parseFloat(prompt('Preço (R$):') || '0');
+      const stock = parseInt(prompt('Estoque:') || '0');
+      const description = prompt('Descrição (opcional):') || '';
+      
+      currentKnowledge.products.push({
+        id: Date.now() + Math.random(),
+        name,
+        price,
+        stock,
+        description
+      });
+      renderProducts();
+      updateStats();
+    });
+
+    // Event: Add FAQ
+    addFaqBtn.addEventListener('click', () => {
+      const q = safeText(faqQuestion.value).trim();
+      const a = safeText(faqAnswer.value).trim();
+      if (!q || !a) {
+        setTrainingStatus('Preencha pergunta e resposta', 'err');
+        return;
+      }
+      currentKnowledge.faq.push({ question: q, answer: a });
+      faqQuestion.value = '';
+      faqAnswer.value = '';
+      renderFAQ();
+      updateStats();
+      setTrainingStatus('FAQ adicionada ✅', 'ok');
+    });
+
+    // Event: Add canned reply
+    addCannedBtn.addEventListener('click', () => {
+      const triggers = safeText(cannedTriggers.value).trim().split(',').map(t => t.trim()).filter(Boolean);
+      const reply = safeText(cannedReply.value).trim();
+      if (!triggers.length || !reply) {
+        setTrainingStatus('Preencha gatilhos e resposta', 'err');
+        return;
+      }
+      currentKnowledge.cannedReplies.push({ triggers, reply });
+      cannedTriggers.value = '';
+      cannedReply.value = '';
+      renderCannedReplies();
+      setTrainingStatus('Resposta rápida adicionada ✅', 'ok');
+    });
+
+    // Event: Documents upload
+    docsFile.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+      
+      files.forEach(file => {
+        currentKnowledge.documents.push({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          uploadedAt: new Date().toISOString()
+        });
+      });
+      
+      renderDocuments();
+      setTrainingStatus(`${files.length} documento(s) adicionado(s) ✅`, 'ok');
+    });
+
+    // Event: Test AI
+    testAiBtn.addEventListener('click', async () => {
+      const question = safeText(testQuestion.value).trim();
+      if (!question) {
+        setTrainingStatus('Digite uma pergunta de teste', 'err');
+        return;
+      }
+      
+      testAiBtn.disabled = true;
+      setTrainingStatus('Testando IA...', null);
+      
+      try {
+        // Check canned replies first
+        const cannedResponse = checkCannedReply(question, currentKnowledge.cannedReplies);
+        if (cannedResponse) {
+          lastTestAnswer = cannedResponse;
+          testAnswer.textContent = '🚀 RESPOSTA RÁPIDA:\n' + cannedResponse;
+          testResult.style.display = 'block';
+          setTrainingStatus('Resposta rápida encontrada! ✅', 'ok');
+          testAiBtn.disabled = false;
+          return;
+        }
+        
+        // Call AI
+        const response = await aiChat({
+          mode: 'reply',
+          extraInstruction: '',
+          transcript: `Usuário: ${question}`,
+          memory: null,
+          chatTitle: 'Teste de IA'
+        });
+        
+        lastTestAnswer = response;
+        testAnswer.textContent = response;
+        testResult.style.display = 'block';
+        setTrainingStatus('Resposta gerada ✅', 'ok');
+      } catch (e) {
+        setTrainingStatus(`Erro ao testar: ${e?.message || String(e)}`, 'err');
+      } finally {
+        testAiBtn.disabled = false;
+      }
+    });
+
+    // Event: Test feedback
+    testGoodBtn.addEventListener('click', async () => {
+      const stats = await getTrainingStats();
+      stats.good = (stats.good || 0) + 1;
+      await saveTrainingStats(stats);
+      await updateStats();
+      setTrainingStatus('Feedback registrado ✅', 'ok');
+    });
+
+    testBadBtn.addEventListener('click', async () => {
+      const stats = await getTrainingStats();
+      stats.bad = (stats.bad || 0) + 1;
+      await saveTrainingStats(stats);
+      await updateStats();
+      setTrainingStatus('Feedback registrado ✅', 'ok');
+    });
+
+    testCorrectBtn.addEventListener('click', async () => {
+      const correction = prompt('Digite a resposta correta:', lastTestAnswer);
+      if (!correction) return;
+      
+      const stats = await getTrainingStats();
+      stats.corrected = (stats.corrected || 0) + 1;
+      await saveTrainingStats(stats);
+      await updateStats();
+      
+      // Could save as example
+      await addExample({ 
+        user: `Contexto:\nUsuário: ${safeText(testQuestion.value)}\n\nGere uma resposta:`, 
+        assistant: correction 
+      });
+      
+      setTrainingStatus('Correção salva como exemplo ✅', 'ok');
+    });
+
+    // Event: Save knowledge
+    saveKnowledgeBtn.addEventListener('click', async () => {
+      try {
+        // Collect all form data
+        currentKnowledge.business = {
+          name: safeText(bizName.value).trim(),
+          description: safeText(bizDescription.value).trim(),
+          segment: safeText(bizSegment.value).trim(),
+          hours: safeText(bizHours.value).trim()
+        };
+        
+        currentKnowledge.policies = {
+          payment: safeText(policyPayment.value).trim(),
+          delivery: safeText(policyDelivery.value).trim(),
+          returns: safeText(policyReturns.value).trim()
+        };
+        
+        currentKnowledge.tone = {
+          style: toneStyle.value,
+          useEmojis: toneEmojis.checked,
+          greeting: safeText(toneGreeting.value).trim(),
+          closing: safeText(toneClosing.value).trim()
+        };
+        
+        await saveKnowledge(currentKnowledge);
+        setTrainingStatus('Conhecimento salvo ✅', 'ok');
+        
+        // Clear cache to force reload
+        whlCache.delete('settings');
+      } catch (e) {
+        setTrainingStatus(`Erro ao salvar: ${e?.message || String(e)}`, 'err');
+      }
+    });
+
+    // Event: Export JSON
+    exportKnowledgeBtn.addEventListener('click', async () => {
+      try {
+        const knowledge = await getKnowledge();
+        const json = JSON.stringify(knowledge, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `whl_knowledge_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        setTrainingStatus('JSON exportado ✅', 'ok');
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+      } catch (e) {
+        setTrainingStatus(`Erro ao exportar: ${e?.message || String(e)}`, 'err');
+      }
+    });
+
+    // Event: Import JSON
+    importKnowledgeBtn.addEventListener('click', () => {
+      importFile.click();
+    });
+
+    importFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        try {
+          const json = JSON.parse(ev.target.result);
+          currentKnowledge = { ...defaultKnowledge, ...json };
+          await saveKnowledge(currentKnowledge);
+          await loadKnowledgeUI();
+          setTrainingStatus('Conhecimento importado ✅', 'ok');
+        } catch (err) {
+          setTrainingStatus(`Erro ao importar: ${err?.message || String(err)}`, 'err');
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    // Event: Clear all
+    clearKnowledgeBtn.addEventListener('click', async () => {
+      if (!confirm('Deseja realmente limpar todo o conhecimento? Esta ação não pode ser desfeita.')) return;
+      
+      try {
+        currentKnowledge = { ...defaultKnowledge };
+        await saveKnowledge(currentKnowledge);
+        await loadKnowledgeUI();
+        setTrainingStatus('Conhecimento limpo ✅', 'ok');
+      } catch (e) {
+        setTrainingStatus(`Erro ao limpar: ${e?.message || String(e)}`, 'err');
+      }
+    });
+
+    // Load knowledge when training tab is opened
+    tabs.forEach(t => {
+      if (t.dataset.tab === 'training') {
+        t.addEventListener('click', () => {
+          loadKnowledgeUI();
+        });
+      }
+    });
+
+    // Initial load if training tab is already active
+    if (tabs.find(t => t.classList.contains('active') && t.dataset.tab === 'training')) {
+      loadKnowledgeUI();
+    }
   }
 
   // Mount when possible (document_start friendly)

@@ -4,7 +4,8 @@
   "version": "0.2.2",
   "description": "WhatsHybrid Lite: Chatbot IA robusto + Memória (Leão) + Campanhas (DOM/API) + Extração de contatos.",
   "permissions": [
-    "storage"
+    "storage",
+    "alarms"
   ],
   "host_permissions": [
     "https://web.whatsapp.com/*",

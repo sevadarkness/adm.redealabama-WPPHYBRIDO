@@ -375,6 +375,39 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       // -------------------------
+      // Scheduled Campaigns
+      // -------------------------
+      if (msg.type === "SCHEDULE_CAMPAIGN") {
+        const campaign = msg.campaign || {};
+        if (!campaign.id || !campaign.scheduledTime) {
+          return fail(sendResponse, new Error("Invalid campaign data"));
+        }
+
+        const scheduledDate = new Date(campaign.scheduledTime);
+        const now = Date.now();
+        const delayMs = scheduledDate.getTime() - now;
+        
+        // Chrome alarms minimum delay is 1 minute for unpacked extensions, less for packed
+        // For campaigns scheduled in less than 1 minute, we use the minimum
+        const delayMinutes = Math.max(0.1, Math.ceil(delayMs / 60000));
+
+        // Create alarm for this campaign
+        await chrome.alarms.create(campaign.id, {
+          delayInMinutes: delayMinutes
+        });
+
+        return ok(sendResponse, { scheduled: true, alarmName: campaign.id, delayMinutes });
+      }
+
+      if (msg.type === "CANCEL_SCHEDULED_CAMPAIGN") {
+        const campaignId = msg.campaignId;
+        if (campaignId) {
+          await chrome.alarms.clear(campaignId);
+        }
+        return ok(sendResponse, { cancelled: true });
+      }
+
+      // -------------------------
       // Unknown
       // -------------------------
       return ok(sendResponse, { unknownType: msg.type });
@@ -385,4 +418,43 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // return true to keep sendResponse valid async
   return true;
+});
+
+// Handle alarms for scheduled campaigns
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  console.log("[WhatsHybrid Lite] Alarm triggered:", alarm.name);
+  
+  // Get scheduled campaigns
+  const data = await chrome.storage.local.get(['whl_scheduled_campaigns']);
+  const campaigns = Array.isArray(data?.whl_scheduled_campaigns) ? data.whl_scheduled_campaigns : [];
+  
+  // Find the campaign that matches this alarm
+  const campaign = campaigns.find(c => c.id === alarm.name);
+  if (!campaign) {
+    console.log("[WhatsHybrid Lite] Campaign not found for alarm:", alarm.name);
+    return;
+  }
+
+  console.log("[WhatsHybrid Lite] Executing scheduled campaign:", campaign.id);
+
+  // Send message to content script to execute campaign
+  try {
+    const tabs = await chrome.tabs.query({ url: "https://web.whatsapp.com/*" });
+    if (tabs.length === 0) {
+      console.log("[WhatsHybrid Lite] No WhatsApp Web tab found");
+      return;
+    }
+
+    // Send to the first WhatsApp Web tab found
+    await chrome.tabs.sendMessage(tabs[0].id, {
+      type: "EXECUTE_SCHEDULED_CAMPAIGN",
+      campaign: campaign
+    });
+
+    // Remove campaign from storage after sending
+    const filtered = campaigns.filter(c => c.id !== campaign.id);
+    await chrome.storage.local.set({ whl_scheduled_campaigns: filtered });
+  } catch (e) {
+    console.error("[WhatsHybrid Lite] Error executing scheduled campaign:", e);
+  }
 });

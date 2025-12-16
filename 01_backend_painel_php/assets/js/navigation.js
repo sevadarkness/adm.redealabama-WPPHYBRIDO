@@ -37,10 +37,18 @@
             });
         }
         
-        // Mobile menu button (if exists)
-        const mobileMenuBtn = document.querySelector('.al-mobile-menu-btn');
+        // Mobile menu button
+        const mobileMenuBtn = document.getElementById('alMobileMenuBtn');
         if (mobileMenuBtn) {
             mobileMenuBtn.addEventListener('click', () => {
+                body.classList.toggle('al-sidebar-mobile-open');
+            });
+        }
+        
+        // Alternative mobile menu button selector
+        const altMobileBtn = document.querySelector('.al-mobile-menu-btn');
+        if (altMobileBtn && altMobileBtn.id !== 'alMobileMenuBtn') {
+            altMobileBtn.addEventListener('click', () => {
                 body.classList.toggle('al-sidebar-mobile-open');
             });
         }

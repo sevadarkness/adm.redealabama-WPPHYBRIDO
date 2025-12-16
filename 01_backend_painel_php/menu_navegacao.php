@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * Menu de Navegação - Alabama CMS
+ * Integrado com o novo sistema de navegação lateral
+ */
+
 // Headers de segurança básicos para toda a área autenticada
 if (!headers_sent()) {
     header('X-Frame-Options: SAMEORIGIN');
@@ -54,8 +59,19 @@ $pagina_inicial = match ($nivel) {
 
 // Pega a página atual
 $current_page = basename($_SERVER['PHP_SELF'] ?? '');
+
+// Inclui o novo menu lateral
+require_once __DIR__ . '/includes/sidebar_menu.php';
+require_once __DIR__ . '/includes/global_search.php';
 ?>
-<nav class="navbar navbar-expand-lg navbar-dark">
+
+<!-- Mobile Menu Toggle Button -->
+<button class="al-mobile-menu-btn d-lg-none" id="alMobileMenuBtn">
+    <i class="fas fa-bars"></i>
+</button>
+
+<!-- Legacy Top Navbar (Hidden by default, can be shown for backward compatibility) -->
+<nav class="navbar navbar-expand-lg navbar-dark d-none">
     <div class="container-fluid">
         <a class="navbar-brand d-flex align-items-center gap-2" href="<?php echo htmlspecialchars($pagina_inicial, ENT_QUOTES, 'UTF-8'); ?>">
             <i class="fas fa-gem" style="color: var(--al-primary);"></i>
@@ -653,5 +669,25 @@ $current_page = basename($_SERVER['PHP_SELF'] ?? '');
             }
         }
     });
+})();
+</script>
+
+<!-- Alabama Navigation System Assets -->
+<script>
+(function() {
+    // Inject navigation CSS if not already present
+    if (!document.querySelector('link[href*="alabama-navigation.css"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'assets/css/alabama-navigation.css';
+        document.head.appendChild(link);
+    }
+    
+    // Inject navigation JS if not already present
+    if (!document.querySelector('script[src*="navigation.js"]')) {
+        const script = document.createElement('script');
+        script.src = 'assets/js/navigation.js';
+        document.body.appendChild(script);
+    }
 })();
 </script>

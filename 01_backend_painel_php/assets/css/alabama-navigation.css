@@ -8,7 +8,8 @@
    ======================================== */
 
 .al-body {
-    display: flex;
+    margin: 0;
+    padding: 0;
     min-height: 100vh;
     overflow-x: hidden;
 }
@@ -30,11 +31,18 @@
 }
 
 .al-main-wrapper {
-    flex: 1;
     margin-left: 280px;
     padding: var(--al-space-xl);
     transition: margin-left 0.3s ease;
     min-height: 100vh;
+}
+
+/* Support for pages using container-fluid */
+.al-body > .container-fluid,
+.al-body > .container,
+.al-body > main {
+    margin-left: 280px;
+    transition: margin-left 0.3s ease;
 }
 
 /* Sidebar collapsed state */
@@ -42,7 +50,10 @@
     width: 70px;
 }
 
-.al-sidebar-collapsed .al-main-wrapper {
+.al-sidebar-collapsed .al-main-wrapper,
+.al-sidebar-collapsed .container-fluid,
+.al-sidebar-collapsed .container,
+.al-sidebar-collapsed main {
     margin-left: 70px;
 }
 
@@ -575,16 +586,48 @@
 }
 
 /* ========================================
+   MOBILE MENU BUTTON
+   ======================================== */
+
+.al-mobile-menu-btn {
+    display: none;
+    position: fixed;
+    top: var(--al-space-md);
+    left: var(--al-space-md);
+    z-index: 1051;
+    background: var(--al-bg-surface);
+    border: 1px solid var(--al-border);
+    border-radius: var(--al-radius-md);
+    padding: var(--al-space-sm) var(--al-space-md);
+    color: var(--al-text-primary);
+    cursor: pointer;
+    box-shadow: var(--al-shadow-md);
+    transition: var(--al-transition);
+}
+
+.al-mobile-menu-btn:hover {
+    background: var(--al-bg-elevated);
+    border-color: var(--al-border-hover);
+}
+
+/* ========================================
    RESPONSIVE
    ======================================== */
 
-@media (max-width: 768px) {
+@media (max-width: 992px) {
+    .al-mobile-menu-btn {
+        display: block;
+    }
+    
     .al-sidebar {
         transform: translateX(-100%);
         width: 280px;
     }
     
-    .al-main-wrapper {
+    .al-main-wrapper,
+    .al-body > .container-fluid,
+    .al-body > .container,
+    .al-body > main {
         margin-left: 0;
     }
     
@@ -596,19 +639,10 @@
         display: block;
     }
     
-    /* Mobile toggle button */
-    .al-mobile-menu-btn {
-        position: fixed;
-        top: var(--al-space-md);
-        left: var(--al-space-md);
-        z-index: 1051;
-        background: var(--al-bg-surface);
-        border: 1px solid var(--al-border);
-        border-radius: var(--al-radius-md);
-        padding: var(--al-space-sm) var(--al-space-md);
-        color: var(--al-text-primary);
-        cursor: pointer;
-        box-shadow: var(--al-shadow-md);
+    /* Add padding for mobile menu button */
+    .al-body > .container-fluid,
+    .al-body > .container {
+        padding-top: calc(var(--al-space-xl) + 40px);
     }
 }
 
@@ -620,5 +654,11 @@
     .al-search-container {
         width: 95%;
         margin: 0 var(--al-space-sm);
+    }
+    
+    .al-body > .container-fluid,
+    .al-body > .container {
+        padding-left: var(--al-space-md);
+        padding-right: var(--al-space-md);
     }
 }

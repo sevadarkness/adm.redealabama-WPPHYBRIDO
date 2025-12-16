@@ -107,9 +107,81 @@
   // -------------------------
   // WhatsApp DOM helpers
   // -------------------------
+  // WA_SELECTORS: Robust selectors with fallback for WhatsApp Web changes
+  const WA_SELECTORS = {
+    chatHeader: ['header', '[data-testid="conversation-header"]', '#main header'],
+    composer: [
+      'footer [contenteditable="true"][role="textbox"]',
+      '[data-testid="conversation-compose-box-input"]',
+      'div[contenteditable="true"][data-tab="10"]'
+    ],
+    sendButton: [
+      'footer button[data-testid="compose-btn-send"]',
+      'footer button[aria-label*="Enviar"]',
+      'footer button[aria-label*="Send"]',
+      'footer button span[data-icon="send"]',
+      'footer button span[data-icon="send-light"]'
+    ],
+    messageNodes: [
+      'div[data-pre-plain-text]',
+      '[data-testid="msg-container"]'
+    ],
+    chatList: [
+      '#pane-side [role="row"]',
+      '[data-testid="chat-list"] [role="row"]',
+      '[data-testid="chat-list"] [role="listitem"]'
+    ],
+    searchBox: [
+      '[data-testid="chat-list-search"] [contenteditable="true"]',
+      '[data-testid="chat-list-search"] [role="textbox"]',
+      '#pane-side [contenteditable="true"][role="textbox"]'
+    ],
+    attachButton: [
+      'footer button[aria-label*="Anexar"]',
+      'footer button[title*="Anexar"]',
+      'footer span[data-icon="attach-menu-plus"]',
+      'footer span[data-icon="clip"]',
+      'footer span[data-icon="attach"]'
+    ],
+    dialogRoot: [
+      'div[role="dialog"]',
+      '[data-testid="media-viewer"]',
+      '[data-testid="popup"]'
+    ]
+  };
+
+  // querySelector with fallback support
+  function querySelector(selectors) {
+    const selectorList = Array.isArray(selectors) ? selectors : [selectors];
+    for (const sel of selectorList) {
+      try {
+        const el = document.querySelector(sel);
+        if (el && el.isConnected) return el;
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  // querySelectorAll with fallback support
+  function querySelectorAll(selectors) {
+    const selectorList = Array.isArray(selectors) ? selectors : [selectors];
+    const results = [];
+    for (const sel of selectorList) {
+      try {
+        const els = document.querySelectorAll(sel);
+        for (const el of els) {
+          if (el && el.isConnected && !results.includes(el)) {
+            results.push(el);
+          }
+        }
+      } catch (e) {}
+    }
+    return results;
+  }
+
   function getChatTitle() {
     // best-effort: WhatsApp changes DOM often
-    const header = document.querySelector('header');
+    const header = querySelector(WA_SELECTORS.chatHeader);
     if (!header) return 'chat_desconhecido';
     const span = header.querySelector('span[title]') || header.querySelector('[title]');
     const title = span?.getAttribute('title') || span?.textContent || '';
@@ -136,20 +208,47 @@
   }
 
   function findComposer() {
-    const cands = Array.from(document.querySelectorAll('footer [contenteditable="true"][role="textbox"]'))
-      .filter(el => el && el.isConnected);
+    const cands = querySelectorAll(WA_SELECTORS.composer).filter(el => el && el.isConnected);
     if (!cands.length) return null;
     const visible = cands.find(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
     return visible || cands[0];
   }
 
-  async function insertIntoComposer(text) {
+  // Humanized typing for stealth mode
+  async function humanizedType(box, text, minDelay = 30, maxDelay = 80) {
+    box.focus();
+    for (const char of text) {
+      try {
+        document.execCommand('insertText', false, char);
+      } catch (_) {
+        box.textContent += char;
+      }
+      box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      const delay = Math.floor(Math.random() * (maxDelay - minDelay)) + minDelay;
+      await sleep(delay);
+    }
+  }
+
+  async function insertIntoComposer(text, humanized = false) {
     const box = findComposer();
     if (!box) throw new Error('Não encontrei a caixa de mensagem do WhatsApp.');
     box.focus();
 
     const t = safeText(text);
 
+    if (humanized) {
+      // Clear existing content first
+      try {
+        document.execCommand('selectAll', false, null);
+        document.execCommand('delete', false, null);
+      } catch (_) {
+        box.textContent = '';
+      }
+      await humanizedType(box, t);
+      return true;
+    }
+
+    // Original fast mode
     // Try execCommand first
     try {
       document.execCommand('selectAll', false, null);
@@ -164,14 +263,7 @@
   }
 
   function findSendButton() {
-    // WhatsApp selectors can change; we try multiple.
-    const btn =
-      document.querySelector('footer button[data-testid="compose-btn-send"]') ||
-      document.querySelector('footer button[aria-label*="Enviar"]') ||
-      document.querySelector('footer button span[data-icon="send"]')?.closest('button') ||
-      document.querySelector('footer button span[data-icon="send-light"]')?.closest('button') ||
-      null;
-    return btn;
+    return querySelector(WA_SELECTORS.sendButton);
   }
 
   async function clickSend() {
@@ -190,14 +282,8 @@
   }
 
   function findAttachButton() {
-    return (
-      document.querySelector('footer button[aria-label*="Anexar"]') ||
-      document.querySelector('footer button[title*="Anexar"]') ||
-      document.querySelector('footer span[data-icon="attach-menu-plus"]')?.closest('button') ||
-      document.querySelector('footer span[data-icon="clip"]')?.closest('button') ||
-      document.querySelector('footer span[data-icon="attach"]')?.closest('button') ||
-      null
-    );
+    const btn = querySelector(WA_SELECTORS.attachButton);
+    return btn?.closest('button') || btn;
   }
 
   function findBestFileInput() {
@@ -211,10 +297,7 @@
   }
 
   function findDialogRoot() {
-    return document.querySelector('div[role="dialog"]') ||
-           document.querySelector('[data-testid="media-viewer"]') ||
-           document.querySelector('[data-testid="popup"]') ||
-           null;
+    return querySelector(WA_SELECTORS.dialogRoot);
   }
 
   function findMediaCaptionBox() {
@@ -471,7 +554,36 @@
     return new Promise((resolve) => {
       chrome.storage.local.get(['whl_memories'], (res) => {
         const mems = res?.whl_memories || {};
-        mems[chatKey] = { ...(memoryObj || {}), updatedAt: new Date().toISOString() };
+        
+        // Limitar tamanho do summary a 2000 caracteres
+        const summary = memoryObj?.summary || '';
+        const truncatedSummary = summary.length > 2000 ? summary.slice(0, 2000) + '...' : summary;
+        
+        mems[chatKey] = { 
+          ...(memoryObj || {}), 
+          summary: truncatedSummary,
+          updatedAt: new Date().toISOString() 
+        };
+        
+        // Manter apenas as 100 memórias mais recentes
+        const keys = Object.keys(mems);
+        if (keys.length > 100) {
+          const sorted = keys.sort((a, b) => {
+            const dateA = new Date(mems[a]?.updatedAt || 0);
+            const dateB = new Date(mems[b]?.updatedAt || 0);
+            return dateB - dateA;
+          });
+          const toKeep = sorted.slice(0, 100);
+          const newMems = {};
+          for (const k of toKeep) {
+            newMems[k] = mems[k];
+          }
+          Object.assign(mems, newMems);
+          for (const k of keys) {
+            if (!toKeep.includes(k)) delete mems[k];
+          }
+        }
+        
         chrome.storage.local.set({ whl_memories: mems }, async () => {
           try {
             await bg('MEMORY_PUSH', { event: { type: 'chat_memory', chatTitle: chatKey, memory: mems[chatKey] } });
@@ -506,6 +618,33 @@
       });
     });
   }
+
+  // -------------------------
+  // Campaign Storage (Persistência de campanhas)
+  // -------------------------
+  const CampaignStorage = {
+    KEY: 'whl_campaign_state',
+    
+    async save(state) {
+      return new Promise((resolve) => {
+        chrome.storage.local.set({ [this.KEY]: state }, () => resolve(true));
+      });
+    },
+    
+    async load() {
+      return new Promise((resolve) => {
+        chrome.storage.local.get([this.KEY], (res) => {
+          resolve(res?.[this.KEY] || null);
+        });
+      });
+    },
+    
+    async clear() {
+      return new Promise((resolve) => {
+        chrome.storage.local.remove([this.KEY], () => resolve(true));
+      });
+    }
+  };
 
   // -------------------------
   // AI prompting
@@ -1531,6 +1670,15 @@ ${transcript || '(não consegui ler mensagens)'}
       campRun.cursor = 0;
       campRun.total = entries.length;
 
+      // Persistir estado inicial
+      await CampaignStorage.save({
+        entries,
+        message: msg,
+        cursor: 0,
+        status: 'running',
+        startedAt: new Date().toISOString()
+      });
+
       setCampDomStatus(`🚀 Iniciando campanha: ${entries.length} contatos…`, 'ok');
       updateProgress(0, entries.length);
 
@@ -1579,6 +1727,14 @@ ${transcript || '(não consegui ler mensagens)'}
           // Continue to next contact even if one fails
         } finally {
           campRun.cursor = i + 1;
+          // Atualizar estado persistido após cada envio
+          await CampaignStorage.save({
+            entries,
+            message: msg,
+            cursor: i + 1,
+            status: campRun.abort ? 'aborted' : 'running',
+            startedAt: campRun.startedAt || new Date().toISOString()
+          });
         }
 
         // Random delay between messages
@@ -1599,6 +1755,9 @@ ${transcript || '(não consegui ler mensagens)'}
       } else {
         setCampDomStatus(`🎉 Campanha concluída! ${entries.length} contatos processados.`, 'ok');
       }
+
+      // Limpar estado persistido
+      await CampaignStorage.clear();
     }
 
     campStartBtn.addEventListener('click', async () => {

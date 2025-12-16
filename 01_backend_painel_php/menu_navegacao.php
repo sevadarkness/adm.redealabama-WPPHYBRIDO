@@ -54,6 +54,21 @@ $pagina_inicial = match ($nivel) {
 
 // Pega a página atual
 $current_page = basename($_SERVER['PHP_SELF'] ?? '');
+
+// Inclui o novo sistema de navegação (sidebar + busca global)
+// NOTA: Mantemos o navbar tradicional por enquanto para compatibilidade
+$use_new_navigation = true; // Defina como false para desabilitar temporariamente
+
+if ($use_new_navigation) {
+    // Inclui sidebar e busca global
+    if (file_exists(__DIR__ . '/includes/sidebar_menu.php')) {
+        include __DIR__ . '/includes/sidebar_menu.php';
+    }
+    
+    if (file_exists(__DIR__ . '/includes/global_search.php')) {
+        include __DIR__ . '/includes/global_search.php';
+    }
+}
 ?>
 <nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container-fluid">
@@ -316,10 +331,21 @@ $current_page = basename($_SERVER['PHP_SELF'] ?? '');
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+
+<?php if ($use_new_navigation): ?>
+<!-- Alabama Navigation System CSS -->
+<link rel="stylesheet" href="assets/css/alabama-navigation.css">
+<?php endif; ?>
+
 <?php if (function_exists('csrf_token')): ?>
 <script <?php echo alabama_csp_nonce_attr(); ?>>
     window.AL_BAMA_CSRF_TOKEN = "<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>";
 </script>
+<?php endif; ?>
+
+<?php if ($use_new_navigation): ?>
+<!-- Alabama Navigation System JS -->
+<script src="assets/js/navigation.js"></script>
 <?php endif; ?>
 
 <style>

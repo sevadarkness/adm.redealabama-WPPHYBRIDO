@@ -23,6 +23,270 @@
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
+// ═══════════════════════════════════════════════════════════════════
+// SISTEMA DE LICENÇA E AUTENTICAÇÃO
+// © 2024 Rede Alabama - Sistema Proprietário
+// ═══════════════════════════════════════════════════════════════════
+
+// Chave de licença (ofuscada em Base64) - "Cristi@no123"
+const LICENSE_KEY_ENCODED = "Q3Jpc3RpQG5vMTIz";
+
+// ═══════════════════════════════════════════════════════════════════
+// FUNÇÕES DE VALIDAÇÃO
+// ═══════════════════════════════════════════════════════════════════
+
+function validateLicense(inputKey) {
+  try {
+    const correctKey = atob(LICENSE_KEY_ENCODED);
+    return inputKey === correctKey;
+  } catch (e) {
+    return false;
+  }
+}
+
+function validateApiKey(apiKey) {
+  // OpenAI API keys start with "sk-" and are typically 48-51 characters
+  // Format: sk-xxxx... or sk-proj-xxxx...
+  if (!apiKey || typeof apiKey !== 'string') return false;
+  
+  const trimmed = apiKey.trim();
+  if (!trimmed.startsWith("sk-")) return false;
+  
+  // Check minimum length (should be at least 40 chars)
+  if (trimmed.length < 40) return false;
+  
+  // Check for valid characters (alphanumeric and hyphens)
+  if (!/^sk-[a-zA-Z0-9-]+$/.test(trimmed)) return false;
+  
+  return true;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FUNÇÕES DE NAVEGAÇÃO ENTRE TELAS
+// ═══════════════════════════════════════════════════════════════════
+
+async function showScreen(screenId) {
+  // Esconder todas as telas
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  
+  // Mostrar tela específica
+  const screen = document.getElementById(screenId);
+  if (screen) {
+    screen.classList.add("active");
+  }
+  
+  // Mostrar/esconder botão de reconfig
+  const btnReconfig = document.getElementById("btnReconfig");
+  if (btnReconfig) {
+    if (screenId === "screenMain") {
+      btnReconfig.classList.remove("hidden");
+      // Setup event listeners for main screen
+      if (typeof setupMainListeners === 'function') {
+        setupMainListeners();
+      }
+      // Carregar configurações quando entrar na tela principal
+      if (typeof load === 'function') {
+        await load().catch((e) => {
+          if (typeof setStatus === 'function') {
+            setStatus(String(e?.message || e), false);
+          }
+        });
+      }
+    } else {
+      btnReconfig.classList.add("hidden");
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// INICIALIZAÇÃO - VERIFICAR ESTADO
+// ═══════════════════════════════════════════════════════════════════
+
+async function initLicenseSystem() {
+  const storage = await chrome.storage.local.get(["licenseValid", "openaiApiKey"]);
+  
+  if (!storage.licenseValid) {
+    // Estado 1: Sem licença
+    showScreen("screenLicense");
+  } else if (!storage.openaiApiKey) {
+    // Estado 2: Licença OK, sem API Key
+    showScreen("screenApiKey");
+  } else {
+    // Estado 3: Tudo configurado
+    showScreen("screenMain");
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EVENT LISTENERS - LICENÇA
+// ═══════════════════════════════════════════════════════════════════
+
+function setupLicenseListeners() {
+  // Validar Licença
+  const btnValidate = document.getElementById("btnValidateLicense");
+  if (btnValidate) {
+    btnValidate.addEventListener("click", async () => {
+      const licenseInput = document.getElementById("licenseKey");
+      const errorEl = document.getElementById("licenseError");
+      const inputValue = licenseInput.value.trim();
+      
+      if (validateLicense(inputValue)) {
+        // Licença válida
+        await chrome.storage.local.set({ licenseValid: true });
+        errorEl.classList.add("hidden");
+        await showScreen("screenApiKey");
+      } else {
+        // Licença inválida
+        errorEl.classList.remove("hidden");
+        licenseInput.classList.add("shake");
+        setTimeout(() => {
+          licenseInput.classList.remove("shake");
+        }, 500);
+      }
+    });
+  }
+
+  // Salvar API Key
+  const btnSaveApi = document.getElementById("btnSaveApiKey");
+  if (btnSaveApi) {
+    btnSaveApi.addEventListener("click", async () => {
+      const apiKeyInput = document.getElementById("openaiApiKey");
+      const errorEl = document.getElementById("apiKeyError");
+      const apiKey = apiKeyInput.value.trim();
+      
+      if (validateApiKey(apiKey)) {
+        // API Key válida
+        await chrome.storage.local.set({ openaiApiKey: apiKey });
+        errorEl.classList.add("hidden");
+        await showScreen("screenMain");
+        
+        // Mostrar status de sucesso se a função existir
+        if (typeof setStatus === 'function') {
+          setStatus("✅ API Key salva com sucesso!", true);
+        }
+      } else {
+        // API Key inválida
+        errorEl.classList.remove("hidden");
+        apiKeyInput.classList.add("shake");
+        setTimeout(() => {
+          apiKeyInput.classList.remove("shake");
+        }, 500);
+      }
+    });
+  }
+
+  // Toggle mostrar/ocultar senha - Licença
+  const toggleLicense = document.getElementById("toggleLicenseKey");
+  if (toggleLicense) {
+    toggleLicense.addEventListener("click", () => {
+      const input = document.getElementById("licenseKey");
+      input.type = input.type === "password" ? "text" : "password";
+    });
+  }
+
+  // Toggle mostrar/ocultar senha - API Key
+  const toggleApi = document.getElementById("toggleApiKey");
+  if (toggleApi) {
+    toggleApi.addEventListener("click", () => {
+      const input = document.getElementById("openaiApiKey");
+      input.type = input.type === "password" ? "text" : "password";
+    });
+  }
+
+  // Enter para validar licença
+  const licenseKeyInput = document.getElementById("licenseKey");
+  if (licenseKeyInput) {
+    licenseKeyInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        document.getElementById("btnValidateLicense").click();
+      }
+    });
+  }
+
+  // Enter para salvar API Key
+  const apiKeyInput = document.getElementById("openaiApiKey");
+  if (apiKeyInput) {
+    apiKeyInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        document.getElementById("btnSaveApiKey").click();
+      }
+    });
+  }
+
+  // Botão Reconfigurar (🔐)
+  const btnReconfig = document.getElementById("btnReconfig");
+  if (btnReconfig) {
+    btnReconfig.addEventListener("click", () => {
+      const modal = document.getElementById("modalReconfig");
+      modal.classList.remove("hidden");
+      const reconfigInput = document.getElementById("reconfigLicenseKey");
+      reconfigInput.value = "";
+      reconfigInput.focus();
+    });
+  }
+
+  // Cancelar Reconfig
+  const btnCancel = document.getElementById("btnCancelReconfig");
+  if (btnCancel) {
+    btnCancel.addEventListener("click", () => {
+      document.getElementById("modalReconfig").classList.add("hidden");
+      document.getElementById("reconfigError").classList.add("hidden");
+    });
+  }
+
+  // Confirmar Reconfig
+  const btnConfirm = document.getElementById("btnConfirmReconfig");
+  if (btnConfirm) {
+    btnConfirm.addEventListener("click", async () => {
+      const licenseInput = document.getElementById("reconfigLicenseKey");
+      const errorEl = document.getElementById("reconfigError");
+      const inputValue = licenseInput.value.trim();
+      
+      if (validateLicense(inputValue)) {
+        document.getElementById("modalReconfig").classList.add("hidden");
+        errorEl.classList.add("hidden");
+        await showScreen("screenApiKey");
+        
+        // Preencher com API Key atual se existir
+        const data = await chrome.storage.local.get(["openaiApiKey"]);
+        if (data.openaiApiKey) {
+          document.getElementById("openaiApiKey").value = data.openaiApiKey;
+        }
+      } else {
+        errorEl.classList.remove("hidden");
+        licenseInput.classList.add("shake");
+        setTimeout(() => {
+          licenseInput.classList.remove("shake");
+        }, 500);
+      }
+    });
+  }
+
+  // Fechar modal clicando no backdrop (não no conteúdo)
+  const modal = document.getElementById("modalReconfig");
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      // Only close if clicking directly on modal (backdrop), not on modal-content
+      if (e.target === modal || e.target.classList.contains("modal-backdrop")) {
+        modal.classList.add("hidden");
+        document.getElementById("reconfigError").classList.add("hidden");
+      }
+    });
+  }
+  
+  // Enter no modal de reconfig
+  const reconfigInput = document.getElementById("reconfigLicenseKey");
+  if (reconfigInput) {
+    reconfigInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        document.getElementById("btnConfirmReconfig").click();
+      }
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+
 const el = (id) => document.getElementById(id);
 
 // Global state
@@ -52,18 +316,20 @@ function setStatus(msg, ok = true) {
 // -------------------------
 // Tab Navigation
 // -------------------------
-document.querySelectorAll('.popup-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    // Remover active de todas as abas
-    document.querySelectorAll('.popup-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.popup-tab-content').forEach(c => c.classList.remove('active'));
-    
-    // Ativar aba clicada
-    tab.classList.add('active');
-    const tabId = `tab-${tab.dataset.tab}`;
-    document.getElementById(tabId).classList.add('active');
+function setupTabNavigation() {
+  document.querySelectorAll('.popup-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Remover active de todas as abas
+      document.querySelectorAll('.popup-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.popup-tab-content').forEach(c => c.classList.remove('active'));
+      
+      // Ativar aba clicada
+      tab.classList.add('active');
+      const tabId = `tab-${tab.dataset.tab}`;
+      document.getElementById(tabId).classList.add('active');
+    });
   });
-});
+}
 
 // -------------------------
 // Load Settings
@@ -118,8 +384,6 @@ async function saveSettings() {
   if (resp?.ok) setStatus("Salvo ✅", true);
   else setStatus(resp?.error || "Falha ao salvar", false);
 }
-
-el("save").addEventListener("click", saveSettings);
 
 // -------------------------
 // Copilot Mode Functions
@@ -180,31 +444,6 @@ async function loadCopilotData() {
   }
 }
 
-el("copilotEnabled").addEventListener("change", async (e) => {
-  const enabled = e.target.checked;
-  const resp = await send("TOGGLE_COPILOT", { enabled });
-  if (resp?.ok) {
-    el("copilotStatusText").textContent = enabled 
-      ? "Modo Copiloto Ativo" 
-      : "Modo Copiloto Desativado";
-  } else {
-    e.target.checked = !enabled;
-  }
-});
-
-el("copilotThreshold").addEventListener("input", (e) => {
-  el("thresholdValue").textContent = `${e.target.value}%`;
-});
-
-el("copilotThreshold").addEventListener("change", async (e) => {
-  const threshold = Number(e.target.value);
-  const resp = await send("SET_THRESHOLD", { threshold });
-  if (resp?.ok) {
-    el("confidenceThreshold").style.left = `${threshold}%`;
-    await loadCopilotData();
-  }
-});
-
 // -------------------------
 // Quick Replies Functions
 // -------------------------
@@ -264,8 +503,6 @@ function renderQuickReplies(replies) {
     });
   });
 }
-
-el("addQuickReply").addEventListener("click", addQuickReply);
 
 // -------------------------
 // Team Functions
@@ -429,14 +666,6 @@ async function sendToTeam() {
   }
 }
 
-// Team event listeners
-el("addMember").addEventListener("click", addTeamMember);
-el("selectAllMembers").addEventListener("click", selectAllMembers);
-el("clearSelection").addEventListener("click", clearSelection);
-el("sendToTeam").addEventListener("click", sendToTeam);
-el("senderName").addEventListener("input", updateMessagePreview);
-el("teamMessage").addEventListener("input", updateMessagePreview);
-
 // -------------------------
 // Utility Functions
 // -------------------------
@@ -447,6 +676,69 @@ function escapeHtml(text) {
 }
 
 // -------------------------
+// Setup Main Event Listeners
+// -------------------------
+let mainListenersSetup = false;
+
+function setupMainListeners() {
+  // Only setup once to avoid duplicate listeners
+  if (mainListenersSetup) return;
+  mainListenersSetup = true;
+  
+  // Save button
+  el("save").addEventListener("click", saveSettings);
+  
+  // Copilot controls
+  el("copilotEnabled").addEventListener("change", async (e) => {
+    const enabled = e.target.checked;
+    const resp = await send("TOGGLE_COPILOT", { enabled });
+    if (resp?.ok) {
+      el("copilotStatusText").textContent = enabled 
+        ? "Modo Copiloto Ativo" 
+        : "Modo Copiloto Desativado";
+    } else {
+      e.target.checked = !enabled;
+    }
+  });
+  
+  el("copilotThreshold").addEventListener("input", (e) => {
+    el("thresholdValue").textContent = `${e.target.value}%`;
+  });
+  
+  el("copilotThreshold").addEventListener("change", async (e) => {
+    const threshold = Number(e.target.value);
+    const resp = await send("SET_THRESHOLD", { threshold });
+    if (resp?.ok) {
+      el("confidenceThreshold").style.left = `${threshold}%`;
+      await loadCopilotData();
+    }
+  });
+  
+  // Quick Replies
+  el("addQuickReply").addEventListener("click", addQuickReply);
+  
+  // Team event listeners
+  el("addMember").addEventListener("click", addTeamMember);
+  el("selectAllMembers").addEventListener("click", selectAllMembers);
+  el("clearSelection").addEventListener("click", clearSelection);
+  el("sendToTeam").addEventListener("click", sendToTeam);
+  el("senderName").addEventListener("input", updateMessagePreview);
+  el("teamMessage").addEventListener("input", updateMessagePreview);
+}
+
+// -------------------------
 // Initialize
 // -------------------------
-load().catch((e) => setStatus(String(e?.message || e), false));
+// Inicializar sistema de licença quando DOM estiver pronto
+document.addEventListener("DOMContentLoaded", async () => {
+  await initLicenseSystem();
+  setupLicenseListeners();
+  setupTabNavigation();
+  
+  // Só carregar configurações se já tiver licença e API key (screenMain)
+  const storage = await chrome.storage.local.get(["licenseValid", "openaiApiKey"]);
+  if (storage.licenseValid && storage.openaiApiKey) {
+    setupMainListeners();
+    load().catch((e) => setStatus(String(e?.message || e), false));
+  }
+});

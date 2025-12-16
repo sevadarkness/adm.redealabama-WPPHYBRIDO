@@ -34,9 +34,9 @@
 // NOTE: This service worker is intentionally small and defensive.
 
 const DEFAULTS = {
-  // Conexão - PRÉ-CONFIGURADO (não aparece no popup)
+  // Conexão - Configurado via popup (após validação de licença)
   provider: "openai",
-  openaiApiKey: "sk-proj-XXXXXXXXXXXXXXXXXXXXXXXX", // Chave fixa
+  openaiApiKey: "", // Configurado via popup após validação de licença
   openaiModel: "gpt-4o-mini",
 
   // Backend - PRÉ-CONFIGURADO (não aparece no popup)
@@ -84,6 +84,12 @@ const DEFAULTS = {
 async function getSettings() {
   const data = await chrome.storage.local.get(Object.keys(DEFAULTS));
   return { ...DEFAULTS, ...data };
+}
+
+// Função para buscar API Key do storage (configurada via popup)
+async function getOpenAIKey() {
+  const data = await chrome.storage.local.get(["openaiApiKey"]);
+  return data.openaiApiKey || null;
 }
 
 function ok(sendResponse, payload) {
@@ -352,7 +358,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
         // OpenAI direct
         const apiKey = String(msg.apiKey || settings.openaiApiKey || "").trim();
-        if (!apiKey) throw new Error("OpenAI API Key não configurada.");
+        if (!apiKey) throw new Error("API Key não configurada. Configure no popup da extensão.");
         const model = String(msg.model || settings.openaiModel || DEFAULTS.openaiModel);
         const temperature = typeof msg.temperature === "number" ? msg.temperature : settings.temperature;
         const maxTokens = typeof msg.maxTokens === "number" ? msg.maxTokens : settings.maxTokens;

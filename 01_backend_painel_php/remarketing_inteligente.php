@@ -2358,13 +2358,17 @@ function initCampaignStatusChart() {
     
     // Show message if no data
     if (!hasData) {
-        const chartContainer = campanhasCtx.parentElement;
-        const noDataMsg = document.createElement('div');
-        noDataMsg.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#888;text-align:center;';
-        noDataMsg.innerHTML = '<i class="fas fa-chart-pie fa-3x mb-3" style="opacity:0.3;"></i><br>Sem dados de campanhas nos últimos 30 dias';
-        chartContainer.style.position = 'relative';
-        chartContainer.appendChild(noDataMsg);
+        showNoDataMessage(campanhasCtx.parentElement, 'chart-pie', 'Sem dados de campanhas nos últimos 30 dias');
     }
+}
+
+// Helper function to show no-data message
+function showNoDataMessage(container, iconClass, message) {
+    const noDataMsg = document.createElement('div');
+    noDataMsg.className = 'chart-no-data';
+    noDataMsg.innerHTML = `<i class="fas fa-${iconClass} fa-3x"></i><br>${message}`;
+    container.style.position = 'relative';
+    container.appendChild(noDataMsg);
 }
 </script>
 </body>

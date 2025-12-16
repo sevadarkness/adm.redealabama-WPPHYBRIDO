@@ -125,7 +125,11 @@ function get_campaign_metrics(PDO $pdo, string $period, string $startDate, strin
         ];
     } catch (Throwable $e) {
         log_app_event('dashboard', 'campaign_metrics_error', ['error' => $e->getMessage()]);
-        return ['totals' => [], 'messages' => [], 'by_day' => []];
+        return [
+            'totals' => ['total_campaigns' => 0, 'active_campaigns' => 0, 'inactive_campaigns' => 0],
+            'messages' => ['total_jobs' => 0, 'total_items' => 0, 'sent_count' => 0, 'failed_count' => 0, 'pending_count' => 0],
+            'by_day' => [],
+        ];
     }
 }
 
@@ -759,12 +763,16 @@ new Chart(campaignCtx, {
 
 // Show message if no data
 if (!hasData) {
-    const chartContainer = campaignCtx.canvas.parentElement;
+    showNoDataMessage(campaignCtx.canvas.parentElement, 'chart-bar', 'Sem dados de mensagens nos últimos 7 dias');
+}
+
+// Helper function to show no-data message
+function showNoDataMessage(container, iconClass, message) {
     const noDataMsg = document.createElement('div');
-    noDataMsg.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#888;text-align:center;';
-    noDataMsg.innerHTML = '<i class="fas fa-chart-bar fa-3x mb-3" style="opacity:0.3;"></i><br>Sem dados de mensagens nos últimos 7 dias';
-    chartContainer.style.position = 'relative';
-    chartContainer.appendChild(noDataMsg);
+    noDataMsg.className = 'chart-no-data';
+    noDataMsg.innerHTML = `<i class="fas fa-${iconClass} fa-3x"></i><br>${message}`;
+    container.style.position = 'relative';
+    container.appendChild(noDataMsg);
 }
 </script>
 

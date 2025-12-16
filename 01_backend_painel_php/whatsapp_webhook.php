@@ -222,14 +222,15 @@ function whatsapp_build_history_for_llm(PDO $pdo, int $conversaId, int $limit = 
     $totalChars = 0;
     $truncated = [];
     foreach (array_reverse($history) as $msg) {
-        $totalChars += strlen($msg['content']);
-        if ($totalChars > $maxChars) {
+        $msgLen = strlen($msg['content']);
+        if ($totalChars + $msgLen > $maxChars) {
             break;
         }
+        $totalChars += $msgLen;
         array_unshift($truncated, $msg);
     }
 
-    return $truncated ?: $history;
+    return $truncated;
 }
 
 

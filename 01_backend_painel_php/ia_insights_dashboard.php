@@ -162,8 +162,6 @@ $tonesValues = array_values($tonesCount);
     <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
     <meta charset="UTF-8">
     <title>Dashboard de Insights IA + WhatsApp</title>
-    <link rel="stylesheet" href="alabama-theme.css">
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="al-body">

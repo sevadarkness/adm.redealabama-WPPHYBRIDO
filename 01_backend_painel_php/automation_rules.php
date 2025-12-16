@@ -156,7 +156,6 @@ if ($erro === null) {
     <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
     <meta charset="UTF-8">
     <title>Regras de Automação - Rede Alabama</title>
-    <link rel="stylesheet" href="alabama-theme.css">
 </head>
 <body class="al-body">
 <div class="container mt-4">

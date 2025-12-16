@@ -127,9 +127,7 @@ include __DIR__ . '/menu_navegacao.php';
     <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
     <meta charset="UTF-8">
     <title>Editor de .env</title>
-    <link rel="stylesheet" href="alabama-theme.css">
     <link rel="stylesheet"
-          href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body class="al-body">
 <div class="container my-4">

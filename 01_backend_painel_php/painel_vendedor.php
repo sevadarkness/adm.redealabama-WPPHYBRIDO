@@ -97,9 +97,7 @@ $evolucao_vendas = $stmt_grafico->fetchAll();
     <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Estilos específicos da página que não conflitam com design system */
-        /* Sobrescritos pelo alabama-page-overrides.css - removidos para evitar conflito */
-        
+        /* Estilos específicos da página */
         .chart-container {
             height: 320px;
             position: relative;

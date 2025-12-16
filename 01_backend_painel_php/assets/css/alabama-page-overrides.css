@@ -2,6 +2,12 @@
  * Alabama Page Overrides
  * Sobrescreve estilos inline e de Bootstrap para aplicar o Design System Premium
  * Incluir este arquivo em TODAS as páginas após o Bootstrap e alabama-theme.css
+ * 
+ * NOTA TÉCNICA: Este arquivo usa !important extensivamente por design.
+ * Isso é intencional para forçar estilos do design system sobre 45+ páginas legacy
+ * com estilos inline e classes Bootstrap inconsistentes. Uma vez que todas as páginas
+ * sejam migradas completamente (inline styles removidos), este arquivo pode ser
+ * refatorado para remover os !important e usar especificidade normal.
  */
 
 /* ========================================

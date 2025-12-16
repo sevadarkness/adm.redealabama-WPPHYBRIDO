@@ -21,6 +21,14 @@
   };
 
   // -------------------------
+  // Constants
+  // -------------------------
+  const CHROME_STORAGE_MAX_SIZE = 8 * 1024 * 1024; // 8MB (leaving 2MB margin from 10MB limit)
+  const MAX_CAMPAIGN_HISTORY = 50;
+  const HASH_TRANSCRIPT_LENGTH = 500;
+  const MEDIA_DIALOG_SELECTOR_PREFIX = 'div[role="dialog"] ';
+
+  // -------------------------
   // Utils
   // -------------------------
   const log = (...args) => console.log('[WhatsHybrid Lite]', ...args);
@@ -89,9 +97,8 @@
       // Validate storage size (chrome.storage.local limit is ~10MB)
       const dataStr = JSON.stringify(data);
       const sizeInBytes = new Blob([dataStr]).size;
-      const maxSize = 8 * 1024 * 1024; // 8MB to leave margin
       
-      if (sizeInBytes > maxSize) {
+      if (sizeInBytes > CHROME_STORAGE_MAX_SIZE) {
         // If media is too large, store reference instead of full base64
         if (data.media && data.media.base64) {
           warn('Campaign media too large for storage, removing base64 data');
@@ -99,8 +106,8 @@
         }
         // If still too large after removing media, throw error
         const retryDataStr = JSON.stringify(data);
-        if (new Blob([retryDataStr]).size > maxSize) {
-          throw new Error('Campaign data too large for chrome.storage.local (>8MB)');
+        if (new Blob([retryDataStr]).size > CHROME_STORAGE_MAX_SIZE) {
+          throw new Error(`Campaign data too large for chrome.storage.local (>${CHROME_STORAGE_MAX_SIZE / 1024 / 1024}MB)`);
         }
       }
       
@@ -132,8 +139,8 @@
       };
       
       history.unshift(historyCampaign);
-      // Manter apenas últimas 50 campanhas
-      const trimmed = history.slice(0, 50);
+      // Manter apenas últimas campanhas
+      const trimmed = history.slice(0, MAX_CAMPAIGN_HISTORY);
       await chrome.storage.local.set({ whl_campaign_history: trimmed });
     },
 
@@ -510,12 +517,13 @@
     if (!dlg) return null;
 
     // Use the fallback system within the dialog
-    const prefix = 'div[role="dialog"] ';
     for (const selector of WA_SELECTORS.mediaSendButton) {
       try {
         let el;
         // Remove prefix if present at start
-        const localSelector = selector.startsWith(prefix) ? selector.substring(prefix.length) : selector;
+        const localSelector = selector.startsWith(MEDIA_DIALOG_SELECTOR_PREFIX) 
+          ? selector.substring(MEDIA_DIALOG_SELECTOR_PREFIX.length) 
+          : selector;
         
         if (localSelector.includes('span[data-icon')) {
           const span = dlg.querySelector(localSelector);
@@ -885,7 +893,7 @@ Regras:
 
   // Hash simples para identificar conversas similares (cache AI)
   function hashTranscript(transcript) {
-    const t = safeText(transcript).slice(-500).toLowerCase();
+    const t = safeText(transcript).slice(-HASH_TRANSCRIPT_LENGTH).toLowerCase();
     let hash = 0;
     for (let i = 0; i < t.length; i++) {
       hash = ((hash << 5) - hash) + t.charCodeAt(i);

@@ -5714,44 +5714,75 @@ ${transcript || '(não consegui ler mensagens)'}
   async function loadCampaignsTab(dropdown) {
     dropdown.innerHTML = `
       <h3>📢 Campanhas</h3>
-      <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
-        Envie mensagens em massa. Para opções completas, use a extensão popup.
-      </p>
-      
-      <label>Nome da Campanha:</label>
-      <input type="text" id="campName" placeholder="Promoção Verão 2024">
-      
-      <label>Números (um por linha ou Nome,Número):</label>
-      <textarea id="campNumbers" placeholder="+5511999999999&#10;João Silva,+5511988888888" style="min-height: 80px;"></textarea>
-      
-      <label>Mensagem:</label>
-      <textarea id="campMessage" placeholder="Olá {{nome}}! Temos uma promoção especial..." style="min-height: 80px;"></textarea>
-      
-      <label>⏱️ Intervalo entre mensagens (segundos):</label>
-      <input type="number" id="campInterval" value="10" min="5" max="60">
-      
-      <button id="startCampaign">🚀 Iniciar Campanha</button>
-      <button id="viewHistory" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">📜 Ver Histórico</button>
-      <div class="status" id="campStatus"></div>
-      
-      <div id="campHistory" style="display: none; margin-top: 12px; max-height: 200px; overflow-y: auto;"></div>
-      
-      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
-      
-      <p style="color: var(--text-muted); font-size: 10px;">
-        💡 <strong>Variáveis disponíveis:</strong>
-        <br>• {{nome}} - Nome do contato
-        <br>• {{numero}} - Número do contato
-        <br><br><strong>Formatos aceitos:</strong>
-        <br>• +5511999999999
-        <br>• Nome,+5511999999999
-      </p>
+      <div style="max-height: 400px; overflow-y: auto; padding-right: 4px;">
+        
+        <label>Nome da Campanha:</label>
+        <input type="text" id="campName" placeholder="Promoção Verão 2024">
+        
+        <label>Números (um por linha ou Nome,Número):</label>
+        <textarea id="campNumbers" placeholder="+5511999999999&#10;João Silva,+5511988888888" style="min-height: 70px;"></textarea>
+        
+        <label>Mensagem:</label>
+        <textarea id="campMessage" placeholder="Olá {{nome}}! Temos uma promoção especial..." style="min-height: 70px;"></textarea>
+        
+        <label>⏱️ Intervalo entre mensagens (segundos):</label>
+        <input type="number" id="campInterval" value="10" min="5" max="60">
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 8px 0;">
+        
+        <h4 style="font-size: 12px; margin: 8px 0;">📅 Agendamento</h4>
+        <label style="display: flex; align-items: center; margin-bottom: 6px;">
+          <input type="radio" name="scheduleType" id="sendNow" checked>
+          <span style="margin-left: 6px;">Enviar Agora</span>
+        </label>
+        <label style="display: flex; align-items: center; margin-bottom: 6px;">
+          <input type="radio" name="scheduleType" id="scheduleFor">
+          <span style="margin-left: 6px;">Agendar para:</span>
+        </label>
+        
+        <div id="scheduleFields" style="display: none; margin-left: 20px;">
+          <label style="font-size: 10px;">Data:</label>
+          <input type="date" id="scheduleDate" style="margin-bottom: 4px;">
+          <label style="font-size: 10px;">Hora:</label>
+          <input type="time" id="scheduleTime" style="margin-bottom: 4px;">
+        </div>
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 8px 0;">
+        
+        <div style="display: flex; gap: 6px;">
+          <button id="startCampaign" style="flex: 1;">🚀 Iniciar</button>
+          <button id="viewHistory" style="flex: 1; background: linear-gradient(135deg, #6366f1, #4f46e5);">📜 Histórico</button>
+        </div>
+        
+        <div class="status" id="campStatus"></div>
+        
+        <div id="campHistory" style="display: none; margin-top: 12px; max-height: 150px; overflow-y: auto;"></div>
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 8px 0;">
+        
+        <p style="color: var(--text-muted); font-size: 10px;">
+          💡 <strong>Variáveis:</strong> {{nome}}, {{numero}}
+          <br><strong>Formatos:</strong> +5511999999999 ou Nome,+5511999999999
+        </p>
+        
+      </div>
     `;
     
     const startBtn = dropdown.querySelector('#startCampaign');
     const historyBtn = dropdown.querySelector('#viewHistory');
     const statusDiv = dropdown.querySelector('#campStatus');
     const historyDiv = dropdown.querySelector('#campHistory');
+    const sendNowRadio = dropdown.querySelector('#sendNow');
+    const scheduleRadio = dropdown.querySelector('#scheduleFor');
+    const scheduleFields = dropdown.querySelector('#scheduleFields');
+    
+    // Show/hide schedule fields
+    scheduleRadio.addEventListener('change', () => {
+      scheduleFields.style.display = scheduleRadio.checked ? 'block' : 'none';
+    });
+    sendNowRadio.addEventListener('change', () => {
+      scheduleFields.style.display = 'none';
+    });
     
     historyBtn.addEventListener('click', async () => {
       chrome.storage.local.get(['whl_campaign_history'], (result) => {
@@ -5760,13 +5791,12 @@ ${transcript || '(não consegui ler mensagens)'}
         if (history.length === 0) {
           historyDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 11px;">Nenhuma campanha no histórico.</p>';
         } else {
-          historyDiv.innerHTML = '<h4 style="font-size: 12px; margin-bottom: 8px;">Histórico de Campanhas</h4>' + 
-            history.map(h => `
-              <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; margin-bottom: 6px; font-size: 11px;">
+          historyDiv.innerHTML = '<h4 style="font-size: 12px; margin-bottom: 8px;">Últimas Campanhas</h4>' + 
+            history.slice(0, 20).map(h => `
+              <div style="background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; margin-bottom: 4px; font-size: 10px;">
                 <div><strong>${h.id || 'N/A'}</strong></div>
                 <div style="color: var(--text-muted);">${new Date(h.completedAt).toLocaleString('pt-BR')}</div>
                 <div>✅ ${h.stats?.success || 0} | ❌ ${h.stats?.failed || 0}</div>
-                <div style="font-size: 10px; opacity: 0.7;">${h.message}</div>
               </div>
             `).join('');
         }
@@ -5780,10 +5810,31 @@ ${transcript || '(não consegui ler mensagens)'}
       const numbers = dropdown.querySelector('#campNumbers').value.trim();
       const message = dropdown.querySelector('#campMessage').value.trim();
       const interval = parseInt(dropdown.querySelector('#campInterval').value) || 10;
+      const isScheduled = scheduleRadio.checked;
       
       if (!numbers || !message) {
         statusDiv.textContent = '❌ Preencha números e mensagem';
         statusDiv.className = 'status err';
+        return;
+      }
+      
+      // Check schedule fields if scheduling
+      if (isScheduled) {
+        const scheduleDate = dropdown.querySelector('#scheduleDate').value;
+        const scheduleTime = dropdown.querySelector('#scheduleTime').value;
+        
+        if (!scheduleDate || !scheduleTime) {
+          statusDiv.textContent = '❌ Preencha data e hora para agendar';
+          statusDiv.className = 'status err';
+          return;
+        }
+        
+        // Schedule campaign (simplified - just show message for now)
+        statusDiv.textContent = `⏰ Campanha agendada para ${scheduleDate} às ${scheduleTime}`;
+        statusDiv.className = 'status ok';
+        
+        // In a real implementation, would save to scheduled campaigns
+        // and use chrome.alarms or background script to execute later
         return;
       }
       

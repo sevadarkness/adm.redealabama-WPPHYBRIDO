@@ -62,16 +62,52 @@
     });
   }
 
-  async function getSettingsCached() {
-    // Simple in-memory cache with short TTL.
-    const now = Date.now();
-    if (getSettingsCached._cache && (now - getSettingsCached._cacheAt) < 5000) {
-      return getSettingsCached._cache;
+  // -------------------------
+  // Smart Cache System
+  // -------------------------
+  class SmartCache {
+    constructor(defaultTTL = 60000) {
+      this.cache = new Map();
+      this.defaultTTL = defaultTTL;
     }
+    
+    set(key, value, ttl = this.defaultTTL) {
+      this.cache.set(key, { value, expiresAt: Date.now() + ttl });
+    }
+    
+    get(key) {
+      const item = this.cache.get(key);
+      if (!item) return null;
+      if (Date.now() > item.expiresAt) {
+        this.cache.delete(key);
+        return null;
+      }
+      return item.value;
+    }
+    
+    has(key) { return this.get(key) !== null; }
+    delete(key) { this.cache.delete(key); }
+    clear() { this.cache.clear(); }
+    
+    cleanup() {
+      const now = Date.now();
+      for (const [key, item] of this.cache.entries()) {
+        if (now > item.expiresAt) this.cache.delete(key);
+      }
+    }
+  }
+
+  const whlCache = new SmartCache();
+  setInterval(() => whlCache.cleanup(), 120000);
+
+  async function getSettingsCached() {
+    // Use SmartCache for settings
+    const cached = whlCache.get('settings');
+    if (cached) return cached;
+    
     const resp = await bg('GET_SETTINGS', {});
     const st = resp?.settings || {};
-    getSettingsCached._cache = st;
-    getSettingsCached._cacheAt = now;
+    whlCache.set('settings', st, 5000);
     return st;
   }
 
@@ -109,18 +145,49 @@
   // -------------------------
   // WA_SELECTORS: Robust selectors with fallback for WhatsApp Web changes
   const WA_SELECTORS = {
-    chatHeader: ['header', '[data-testid="conversation-header"]', '#main header'],
+    chatHeader: [
+      'header span[title]',
+      'header [title]',
+      '#main header span[dir="auto"]',
+      'header',
+      '[data-testid="conversation-header"]',
+      '#main header'
+    ],
     composer: [
       'footer [contenteditable="true"][role="textbox"]',
       '[data-testid="conversation-compose-box-input"]',
+      'div[data-tab="10"][contenteditable="true"]',
+      '#main footer [contenteditable="true"]',
+      'footer div[contenteditable="true"]',
       'div[contenteditable="true"][data-tab="10"]'
     ],
     sendButton: [
       'footer button[data-testid="compose-btn-send"]',
-      'footer button[aria-label*="Enviar"]',
-      'footer button[aria-label*="Send"]',
       'footer button span[data-icon="send"]',
-      'footer button span[data-icon="send-light"]'
+      'footer button span[data-icon="send-light"]',
+      'footer button[aria-label*="Enviar"]',
+      'footer button[aria-label*="Send"]'
+    ],
+    attachButton: [
+      'footer button[aria-label*="Anexar"]',
+      'footer button[title*="Anexar"]',
+      'footer span[data-icon="attach-menu-plus"]',
+      'footer span[data-icon="clip"]',
+      'footer span[data-icon="attach"]'
+    ],
+    searchBox: [
+      '[data-testid="chat-list-search"] [contenteditable="true"]',
+      '#pane-side [contenteditable="true"][role="textbox"]',
+      '[data-testid="chat-list-search"] [role="textbox"]'
+    ],
+    searchResults: [
+      '#pane-side [role="row"]',
+      '[data-testid="chat-list"] [role="row"]'
+    ],
+    messagesContainer: [
+      '[data-testid="conversation-panel-messages"]',
+      '#main div[role="application"]',
+      '#main'
     ],
     messageNodes: [
       'div[data-pre-plain-text]',
@@ -130,18 +197,6 @@
       '#pane-side [role="row"]',
       '[data-testid="chat-list"] [role="row"]',
       '[data-testid="chat-list"] [role="listitem"]'
-    ],
-    searchBox: [
-      '[data-testid="chat-list-search"] [contenteditable="true"]',
-      '[data-testid="chat-list-search"] [role="textbox"]',
-      '#pane-side [contenteditable="true"][role="textbox"]'
-    ],
-    attachButton: [
-      'footer button[aria-label*="Anexar"]',
-      'footer button[title*="Anexar"]',
-      'footer span[data-icon="attach-menu-plus"]',
-      'footer span[data-icon="clip"]',
-      'footer span[data-icon="attach"]'
     ],
     dialogRoot: [
       'div[role="dialog"]',
@@ -179,6 +234,32 @@
     return results;
   }
 
+  // findElement with visibility check - uses WA_SELECTORS keys
+  function findElement(selectorKey, parent = document) {
+    const selectors = WA_SELECTORS[selectorKey];
+    if (!selectors) return null;
+    
+    for (const sel of selectors) {
+      try {
+        const el = parent.querySelector(sel);
+        if (el && el.isConnected && (el.offsetWidth || el.offsetHeight || el.getClientRects().length)) {
+          return el;
+        }
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  // findElementWithRetry - retry finding element with delays
+  async function findElementWithRetry(selectorKey, maxAttempts = 10, delayMs = 300) {
+    for (let i = 0; i < maxAttempts; i++) {
+      const el = findElement(selectorKey);
+      if (el) return el;
+      await sleep(delayMs);
+    }
+    return null;
+  }
+
   function getChatTitle() {
     // best-effort: WhatsApp changes DOM often
     const header = querySelector(WA_SELECTORS.chatHeader);
@@ -208,13 +289,84 @@
   }
 
   function findComposer() {
+    // Try new findElement helper first (with visibility check)
+    const el = findElement('composer');
+    if (el) return el;
+    
+    // Fallback to original implementation
     const cands = querySelectorAll(WA_SELECTORS.composer).filter(el => el && el.isConnected);
     if (!cands.length) return null;
     const visible = cands.find(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
     return visible || cands[0];
   }
 
-  // Humanized typing for stealth mode
+  // -------------------------
+  // Stealth Mode (Human Behavior Simulation)
+  // -------------------------
+  const STEALTH_CONFIG = {
+    typingDelayMin: 30,
+    typingDelayMax: 120,
+    beforeSendDelayMin: 200,
+    beforeSendDelayMax: 800,
+    delayVariation: 0.3,
+    humanHoursStart: 7,
+    humanHoursEnd: 22,
+    maxMessagesPerHour: 30,
+    randomLongPauseChance: 0.05,
+    randomLongPauseMin: 30000,
+    randomLongPauseMax: 120000
+  };
+
+  function randomBetween(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function isHumanHour() {
+    const hour = new Date().getHours();
+    return hour >= STEALTH_CONFIG.humanHoursStart && hour < STEALTH_CONFIG.humanHoursEnd;
+  }
+
+  const messageTimestamps = [];
+  function checkRateLimit() {
+    const oneHourAgo = Date.now() - 3600000;
+    while (messageTimestamps.length && messageTimestamps[0] < oneHourAgo) {
+      messageTimestamps.shift();
+    }
+    return messageTimestamps.length < STEALTH_CONFIG.maxMessagesPerHour;
+  }
+
+  function recordMessageSent() {
+    messageTimestamps.push(Date.now());
+  }
+
+  async function humanType(element, text) {
+    element.focus();
+    document.execCommand('selectAll', false, null);
+    await sleep(randomBetween(50, 150));
+    
+    for (let i = 0; i < text.length; i++) {
+      const delay = randomBetween(STEALTH_CONFIG.typingDelayMin, STEALTH_CONFIG.typingDelayMax);
+      await sleep(delay);
+      document.execCommand('insertText', false, text[i]);
+      
+      if (Math.random() < 0.02) {
+        await sleep(randomBetween(300, 800));
+      }
+    }
+    
+    element.dispatchEvent(new InputEvent('input', { bubbles: true }));
+  }
+
+  async function maybeRandomLongPause() {
+    if (Math.random() < STEALTH_CONFIG.randomLongPauseChance) {
+      const pause = randomBetween(STEALTH_CONFIG.randomLongPauseMin, STEALTH_CONFIG.randomLongPauseMax);
+      await sleep(pause);
+      return true;
+    }
+    return false;
+  }
+
+  // Humanized typing for stealth mode (original implementation - keeping for compatibility)
   async function humanizedType(box, text, minDelay = 30, maxDelay = 80) {
     box.focus();
     for (const char of text) {
@@ -229,12 +381,18 @@
     }
   }
 
-  async function insertIntoComposer(text, humanized = false) {
+  async function insertIntoComposer(text, humanized = false, stealthMode = false) {
     const box = findComposer();
     if (!box) throw new Error('Não encontrei a caixa de mensagem do WhatsApp.');
     box.focus();
 
     const t = safeText(text);
+
+    if (stealthMode) {
+      // Enhanced stealth mode with full human simulation
+      await humanType(box, t);
+      return true;
+    }
 
     if (humanized) {
       // Clear existing content first
@@ -263,13 +421,36 @@
   }
 
   function findSendButton() {
+    // Try new findElement helper first (with visibility check)
+    const el = findElement('sendButton');
+    if (el) return el;
+    
+    // Fallback to original implementation
     return querySelector(WA_SELECTORS.sendButton);
   }
 
-  async function clickSend() {
+  async function clickSend(stealthMode = false) {
+    if (stealthMode) {
+      // Add natural delay before sending in stealth mode
+      const delay = randomBetween(STEALTH_CONFIG.beforeSendDelayMin, STEALTH_CONFIG.beforeSendDelayMax);
+      await sleep(delay);
+      
+      // Check rate limit
+      if (!checkRateLimit()) {
+        throw new Error('Rate limit atingido. Aguarde para enviar mais mensagens.');
+      }
+    }
+    
     const btn = findSendButton();
     if (!btn) throw new Error('Não encontrei o botão ENVIAR.');
     btn.click();
+    
+    if (stealthMode) {
+      recordMessageSent();
+      // Maybe add a random long pause after sending
+      await maybeRandomLongPause();
+    }
+    
     return true;
   }
 
@@ -645,6 +826,33 @@
       });
     }
   };
+
+  // Campaign persistence wrapper functions
+  async function saveCampaignState(state) {
+    await chrome.storage.local.set({ 'whl_campaign_active': state });
+  }
+
+  async function loadCampaignState() {
+    const result = await chrome.storage.local.get(['whl_campaign_active']);
+    return result.whl_campaign_active || null;
+  }
+
+  async function clearCampaignState() {
+    await chrome.storage.local.remove(['whl_campaign_active']);
+  }
+
+  async function saveCampaignToHistory(campaign) {
+    const result = await chrome.storage.local.get(['whl_campaign_history']);
+    const history = result.whl_campaign_history || [];
+    history.unshift({
+      id: campaign.id,
+      createdAt: campaign.createdAt,
+      completedAt: new Date().toISOString(),
+      stats: campaign.progress,
+      message: (campaign.config?.message || '').slice(0, 50) + '...'
+    });
+    await chrome.storage.local.set({ 'whl_campaign_history': history.slice(0, 20) });
+  }
 
   // -------------------------
   // AI prompting

@@ -5056,38 +5056,75 @@ ${transcript || '(não consegui ler mensagens)'}
       <label>Telefone:</label>
       <input type="text" id="teamPhone" placeholder="+5511999999999">
       
+      <label>Função:</label>
+      <input type="text" id="teamRole" placeholder="Atendente">
+      
       <button id="addTeamMember">Adicionar Membro</button>
       
       <div id="teamList" style="margin-top: 12px;"></div>
+      
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+      
+      <label>Mensagem para Equipe:</label>
+      <textarea id="teamMessage" placeholder="Mensagem para enviar à equipe..." style="min-height: 60px;"></textarea>
+      
+      <button id="sendToTeam">Enviar para Todos</button>
       
       <div class="status" id="teamStatus"></div>
     `;
     
     // Load existing team members
-    chrome.storage.local.get(['team_members'], (result) => {
-      const members = result.team_members || [];
-      const listDiv = dropdown.querySelector('#teamList');
-      
-      if (members.length === 0) {
-        listDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 11px;">Nenhum membro cadastrado.</p>';
-      } else {
-        listDiv.innerHTML = members.map((m, idx) => `
-          <div class="team-member">
-            <div class="team-member-info">
-              <strong>${m.name}</strong>
-              <div>${m.phone}</div>
+    function loadTeamList() {
+      chrome.storage.local.get(['team_members'], (result) => {
+        const members = result.team_members || [];
+        const listDiv = dropdown.querySelector('#teamList');
+        
+        if (members.length === 0) {
+          listDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 11px;">Nenhum membro cadastrado.</p>';
+        } else {
+          listDiv.innerHTML = members.map((m, idx) => `
+            <div class="team-member">
+              <div class="team-member-info">
+                <strong>${m.name}</strong>
+                <div>${m.phone}${m.role ? ' • ' + m.role : ''}</div>
+              </div>
+              <button class="remove-team-btn" data-idx="${idx}" style="background: rgba(255,77,79,0.2); color: #ff4d4f; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 10px;">
+                Remover
+              </button>
             </div>
-          </div>
-        `).join('');
-      }
-    });
+          `).join('');
+          
+          // Add remove handlers
+          listDiv.querySelectorAll('.remove-team-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const idx = parseInt(btn.dataset.idx);
+              chrome.storage.local.get(['team_members'], (res) => {
+                const mems = res.team_members || [];
+                mems.splice(idx, 1);
+                chrome.storage.local.set({ team_members: mems }, () => {
+                  loadTeamList();
+                  const statusDiv = dropdown.querySelector('#teamStatus');
+                  statusDiv.textContent = '✅ Membro removido!';
+                  statusDiv.className = 'status ok';
+                  setTimeout(() => statusDiv.className = 'status', 3000);
+                });
+              });
+            });
+          });
+        }
+      });
+    }
+    
+    loadTeamList();
     
     const addBtn = dropdown.querySelector('#addTeamMember');
+    const sendBtn = dropdown.querySelector('#sendToTeam');
     const statusDiv = dropdown.querySelector('#teamStatus');
     
     addBtn.addEventListener('click', () => {
       const name = dropdown.querySelector('#teamName').value.trim();
       const phone = dropdown.querySelector('#teamPhone').value.trim();
+      const role = dropdown.querySelector('#teamRole').value.trim();
       
       if (!name || !phone) {
         statusDiv.textContent = '❌ Preencha nome e telefone';
@@ -5097,13 +5134,59 @@ ${transcript || '(não consegui ler mensagens)'}
       
       chrome.storage.local.get(['team_members'], (result) => {
         const members = result.team_members || [];
-        members.push({ name, phone });
+        members.push({ name, phone, role });
         
         chrome.storage.local.set({ team_members: members }, () => {
           statusDiv.textContent = '✅ Membro adicionado!';
           statusDiv.className = 'status ok';
-          loadTeamTab(dropdown);
+          dropdown.querySelector('#teamName').value = '';
+          dropdown.querySelector('#teamPhone').value = '';
+          dropdown.querySelector('#teamRole').value = '';
+          loadTeamList();
         });
+      });
+    });
+    
+    sendBtn.addEventListener('click', async () => {
+      const message = dropdown.querySelector('#teamMessage').value.trim();
+      
+      if (!message) {
+        statusDiv.textContent = '❌ Digite uma mensagem';
+        statusDiv.className = 'status err';
+        return;
+      }
+      
+      chrome.storage.local.get(['team_members'], async (result) => {
+        const members = result.team_members || [];
+        
+        if (members.length === 0) {
+          statusDiv.textContent = '❌ Nenhum membro cadastrado';
+          statusDiv.className = 'status err';
+          return;
+        }
+        
+        statusDiv.textContent = `🚀 Enviando para ${members.length} membros...`;
+        statusDiv.className = 'status ok';
+        sendBtn.disabled = true;
+        
+        try {
+          // Convert to campaign format
+          const entries = members.map(m => ({
+            name: m.name || '',
+            number: m.phone || '',
+            vars: { nome: m.name || '', numero: m.phone || '', funcao: m.role || '' }
+          }));
+          
+          await executeDomCampaignDirectly(entries, message, null);
+          
+          statusDiv.textContent = '✅ Mensagens enviadas!';
+          statusDiv.className = 'status ok';
+        } catch (e) {
+          statusDiv.textContent = `❌ Erro: ${e.message}`;
+          statusDiv.className = 'status err';
+        } finally {
+          sendBtn.disabled = false;
+        }
       });
     });
   }
@@ -5146,40 +5229,112 @@ ${transcript || '(não consegui ler mensagens)'}
         Configure o conhecimento da IA. Para acesso completo, use a extensão popup.
       </p>
       
-      <label>Nome do Negócio:</label>
+      <label>🏢 Nome do Negócio:</label>
       <input type="text" id="trainingBizName" placeholder="Minha Empresa">
       
-      <label>Descrição:</label>
-      <textarea id="trainingBizDesc" placeholder="Vendemos produtos de qualidade..."></textarea>
+      <label>📋 Descrição:</label>
+      <textarea id="trainingBizDesc" placeholder="Vendemos produtos de qualidade..." style="min-height: 60px;"></textarea>
       
-      <button id="saveTraining">Salvar</button>
+      <label>🏪 Segmento:</label>
+      <input type="text" id="trainingBizSegment" placeholder="Ex: E-commerce, Restaurante">
+      
+      <label>⏰ Horário de Atendimento:</label>
+      <input type="text" id="trainingBizHours" placeholder="Ex: Seg-Sex 9h-18h">
+      
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+      
+      <label>🗣️ Tom de Voz:</label>
+      <select id="trainingToneStyle">
+        <option value="formal">Formal</option>
+        <option value="informal">Informal</option>
+        <option value="professional">Profissional</option>
+        <option value="friendly">Amigável</option>
+      </select>
+      
+      <label style="display: flex; align-items: center; margin-top: 8px;">
+        <input type="checkbox" id="trainingUseEmojis">
+        <span>Usar Emojis nas respostas</span>
+      </label>
+      
+      <button id="saveTraining">💾 Salvar Configurações</button>
+      <button id="syncTraining" style="background: linear-gradient(135deg, #10b981, #059669);">🔄 Sincronizar</button>
       <div class="status" id="trainingStatus"></div>
       
-      <p style="color: var(--text-muted); font-size: 10px; margin-top: 12px;">
-        💡 Dica: Clique no ícone da extensão para acessar todas as opções de treinamento.
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+      
+      <p style="color: var(--text-muted); font-size: 10px;">
+        💡 <strong>Dica:</strong> Clique no ícone da extensão para acessar:
+        <br>• Catálogo de Produtos (CSV)
+        <br>• FAQ Completo
+        <br>• Políticas (Pagamento, Entrega, Trocas)
+        <br>• Upload de Documentos (PDF/TXT)
+        <br>• Testar IA
+        <br>• Estatísticas de Treinamento
       </p>
     `;
     
     // Load existing knowledge
     const knowledge = await getKnowledge();
-    dropdown.querySelector('#trainingBizName').value = knowledge.business.name || '';
-    dropdown.querySelector('#trainingBizDesc').value = knowledge.business.description || '';
+    dropdown.querySelector('#trainingBizName').value = knowledge.business?.name || '';
+    dropdown.querySelector('#trainingBizDesc').value = knowledge.business?.description || '';
+    dropdown.querySelector('#trainingBizSegment').value = knowledge.business?.segment || '';
+    dropdown.querySelector('#trainingBizHours').value = knowledge.business?.hours || '';
+    dropdown.querySelector('#trainingToneStyle').value = knowledge.tone?.style || 'informal';
+    dropdown.querySelector('#trainingUseEmojis').checked = knowledge.tone?.useEmojis !== false;
     
     const saveBtn = dropdown.querySelector('#saveTraining');
+    const syncBtn = dropdown.querySelector('#syncTraining');
     const statusDiv = dropdown.querySelector('#trainingStatus');
     
     saveBtn.addEventListener('click', async () => {
       const name = dropdown.querySelector('#trainingBizName').value.trim();
       const description = dropdown.querySelector('#trainingBizDesc').value.trim();
+      const segment = dropdown.querySelector('#trainingBizSegment').value.trim();
+      const hours = dropdown.querySelector('#trainingBizHours').value.trim();
+      const style = dropdown.querySelector('#trainingToneStyle').value;
+      const useEmojis = dropdown.querySelector('#trainingUseEmojis').checked;
       
-      knowledge.business.name = name;
-      knowledge.business.description = description;
+      knowledge.business = {
+        ...(knowledge.business || {}),
+        name,
+        description,
+        segment,
+        hours
+      };
+      
+      knowledge.tone = {
+        ...(knowledge.tone || {}),
+        style,
+        useEmojis
+      };
       
       await saveKnowledge(knowledge);
       
       statusDiv.textContent = '✅ Conhecimento salvo!';
       statusDiv.className = 'status ok';
       setTimeout(() => statusDiv.className = 'status', 3000);
+    });
+    
+    syncBtn.addEventListener('click', async () => {
+      statusDiv.textContent = '🔄 Sincronizando...';
+      statusDiv.className = 'status ok';
+      syncBtn.disabled = true;
+      
+      try {
+        const synced = await syncKnowledge(knowledge);
+        
+        if (synced !== knowledge) {
+          statusDiv.textContent = '✅ Sincronizado com servidor!';
+        } else {
+          statusDiv.textContent = '⚠️ Salvo localmente (servidor indisponível)';
+        }
+        statusDiv.className = 'status ok';
+      } catch (e) {
+        statusDiv.textContent = `❌ Erro: ${e.message}`;
+        statusDiv.className = 'status err';
+      } finally {
+        syncBtn.disabled = false;
+      }
     });
   }
   
@@ -5190,26 +5345,68 @@ ${transcript || '(não consegui ler mensagens)'}
         Envie mensagens em massa. Para opções completas, use a extensão popup.
       </p>
       
-      <label>Números (um por linha):</label>
-      <textarea id="campNumbers" placeholder="+5511999999999&#10;+5511988888888" style="min-height: 80px;"></textarea>
+      <label>Nome da Campanha:</label>
+      <input type="text" id="campName" placeholder="Promoção Verão 2024">
+      
+      <label>Números (um por linha ou Nome,Número):</label>
+      <textarea id="campNumbers" placeholder="+5511999999999&#10;João Silva,+5511988888888" style="min-height: 80px;"></textarea>
       
       <label>Mensagem:</label>
-      <textarea id="campMessage" placeholder="Olá {{nome}}! Temos uma promoção especial..."></textarea>
+      <textarea id="campMessage" placeholder="Olá {{nome}}! Temos uma promoção especial..." style="min-height: 80px;"></textarea>
       
-      <button id="startCampaign">Iniciar Campanha</button>
+      <label>⏱️ Intervalo entre mensagens (segundos):</label>
+      <input type="number" id="campInterval" value="10" min="5" max="60">
+      
+      <button id="startCampaign">🚀 Iniciar Campanha</button>
+      <button id="viewHistory" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">📜 Ver Histórico</button>
       <div class="status" id="campStatus"></div>
       
-      <p style="color: var(--text-muted); font-size: 10px; margin-top: 12px;">
-        💡 Use {{nome}} e {{numero}} como variáveis na mensagem.
+      <div id="campHistory" style="display: none; margin-top: 12px; max-height: 200px; overflow-y: auto;"></div>
+      
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+      
+      <p style="color: var(--text-muted); font-size: 10px;">
+        💡 <strong>Variáveis disponíveis:</strong>
+        <br>• {{nome}} - Nome do contato
+        <br>• {{numero}} - Número do contato
+        <br><br><strong>Formatos aceitos:</strong>
+        <br>• +5511999999999
+        <br>• Nome,+5511999999999
       </p>
     `;
     
     const startBtn = dropdown.querySelector('#startCampaign');
+    const historyBtn = dropdown.querySelector('#viewHistory');
     const statusDiv = dropdown.querySelector('#campStatus');
+    const historyDiv = dropdown.querySelector('#campHistory');
+    
+    historyBtn.addEventListener('click', async () => {
+      chrome.storage.local.get(['whl_campaign_history'], (result) => {
+        const history = result.whl_campaign_history || [];
+        
+        if (history.length === 0) {
+          historyDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 11px;">Nenhuma campanha no histórico.</p>';
+        } else {
+          historyDiv.innerHTML = '<h4 style="font-size: 12px; margin-bottom: 8px;">Histórico de Campanhas</h4>' + 
+            history.map(h => `
+              <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; margin-bottom: 6px; font-size: 11px;">
+                <div><strong>${h.id || 'N/A'}</strong></div>
+                <div style="color: var(--text-muted);">${new Date(h.completedAt).toLocaleString('pt-BR')}</div>
+                <div>✅ ${h.stats?.success || 0} | ❌ ${h.stats?.failed || 0}</div>
+                <div style="font-size: 10px; opacity: 0.7;">${h.message}</div>
+              </div>
+            `).join('');
+        }
+        
+        historyDiv.style.display = historyDiv.style.display === 'none' ? 'block' : 'none';
+      });
+    });
     
     startBtn.addEventListener('click', async () => {
+      const name = dropdown.querySelector('#campName').value.trim();
       const numbers = dropdown.querySelector('#campNumbers').value.trim();
       const message = dropdown.querySelector('#campMessage').value.trim();
+      const interval = parseInt(dropdown.querySelector('#campInterval').value) || 10;
       
       if (!numbers || !message) {
         statusDiv.textContent = '❌ Preencha números e mensagem';
@@ -5221,15 +5418,31 @@ ${transcript || '(não consegui ler mensagens)'}
       const lines = numbers.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       const entries = lines.map(line => {
         const parts = line.split(',').map(p => p.trim());
-        const rawNumber = (parts[0] || '').replace(/[^\d+]/g, '');
-        const name = parts[1] || '';
+        
+        // Check if format is: Name,Number or just Number
+        let rawNumber, contactName;
+        if (parts.length >= 2 && parts[1].match(/[\d+]/)) {
+          // Format: Name,Number
+          contactName = parts[0];
+          rawNumber = parts[1];
+        } else {
+          // Format: Number only
+          rawNumber = parts[0];
+          contactName = '';
+        }
+        
+        rawNumber = rawNumber.replace(/[^\d+]/g, '');
         
         // Validate phone number (at least 8 digits)
         const digitsOnly = rawNumber.replace(/\D/g, '');
         if (digitsOnly.length < 8) return null;
         
         const number = rawNumber.startsWith('+') ? rawNumber : '+' + rawNumber;
-        return { number, name };
+        return { 
+          number, 
+          name: contactName,
+          vars: { nome: contactName || 'Cliente', numero: number }
+        };
       }).filter(Boolean); // Remove null entries
       
       if (entries.length === 0) {
@@ -5240,13 +5453,32 @@ ${transcript || '(não consegui ler mensagens)'}
       
       statusDiv.textContent = `🚀 Iniciando campanha com ${entries.length} contatos...`;
       statusDiv.className = 'status ok';
+      startBtn.disabled = true;
       
       try {
-        await executeDomCampaignDirectly(entries, message, null);
-        statusDiv.textContent = '✅ Campanha concluída!';
+        const campaignId = name || `Campanha_${Date.now()}`;
+        const results = await executeDomCampaignDirectly(entries, message, null);
+        
+        // Save to history
+        chrome.storage.local.get(['whl_campaign_history'], (res) => {
+          const history = res.whl_campaign_history || [];
+          history.unshift({
+            id: campaignId,
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            stats: results,
+            message: message.slice(0, 50) + '...'
+          });
+          chrome.storage.local.set({ whl_campaign_history: history.slice(0, 20) });
+        });
+        
+        statusDiv.textContent = `✅ Campanha concluída! ✅ ${results.success} | ❌ ${results.failed}`;
+        statusDiv.className = 'status ok';
       } catch (e) {
         statusDiv.textContent = `❌ Erro: ${e.message}`;
         statusDiv.className = 'status err';
+      } finally {
+        startBtn.disabled = false;
       }
     });
   }
@@ -5255,26 +5487,60 @@ ${transcript || '(não consegui ler mensagens)'}
     dropdown.innerHTML = `
       <h3>📇 Contatos</h3>
       <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
-        Extraia contatos visíveis na tela.
+        Extraia e gerencie contatos do WhatsApp Web.
       </p>
       
-      <button id="extractContacts">Extrair Contatos</button>
+      <div style="display: flex; gap: 6px;">
+        <button id="extractContacts" style="flex: 1;">📱 Extrair da Lista</button>
+        <button id="extractGroups" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669);">👥 Extrair de Grupos</button>
+      </div>
       
-      <label style="margin-top: 12px;">Contatos Extraídos:</label>
-      <textarea id="contactsResult" readonly style="min-height: 120px;"></textarea>
+      <label style="margin-top: 12px;">Contatos Extraídos (<span id="contactCount">0</span>):</label>
+      <textarea id="contactsResult" readonly style="min-height: 120px; font-size: 11px;"></textarea>
       
-      <button id="downloadContacts">Baixar CSV</button>
+      <div style="display: flex; gap: 6px;">
+        <button id="downloadContacts" style="flex: 1;">💾 Baixar CSV</button>
+        <button id="importContacts" style="flex: 1; background: linear-gradient(135deg, #8b5cf6, #7c3aed);">📥 Importar CSV</button>
+      </div>
+      
+      <input type="file" id="importFile" accept=".csv" style="display: none;">
+      
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+      
+      <label>➕ Adicionar Manualmente:</label>
+      <input type="text" id="contactName" placeholder="Nome (opcional)">
+      <input type="text" id="contactPhone" placeholder="+5511999999999">
+      <input type="text" id="contactTags" placeholder="Tags (separadas por vírgula)">
+      <button id="addContact">Adicionar Contato</button>
+      
       <div class="status" id="contactsStatus"></div>
+      
+      <p style="color: var(--text-muted); font-size: 10px; margin-top: 12px;">
+        💡 <strong>Dica:</strong> Os contatos extraídos podem ser usados em campanhas.
+        <br>• Extrair da Lista: Contatos visíveis na lista de conversas
+        <br>• Extrair de Grupos: Abre grupos e extrai membros
+        <br>• CSV: Formato "Nome,Telefone,Tags"
+      </p>
     `;
     
     const extractBtn = dropdown.querySelector('#extractContacts');
+    const extractGroupsBtn = dropdown.querySelector('#extractGroups');
     const downloadBtn = dropdown.querySelector('#downloadContacts');
+    const importBtn = dropdown.querySelector('#importContacts');
+    const importFile = dropdown.querySelector('#importFile');
+    const addContactBtn = dropdown.querySelector('#addContact');
     const resultArea = dropdown.querySelector('#contactsResult');
     const statusDiv = dropdown.querySelector('#contactsStatus');
+    const countSpan = dropdown.querySelector('#contactCount');
+    
+    function updateCount() {
+      const lines = resultArea.value.split(/\r?\n/).filter(l => l.trim()).length;
+      countSpan.textContent = lines;
+    }
     
     extractBtn.addEventListener('click', () => {
       try {
-        const nums = [];
+        const contacts = [];
         
         // Extract from visible chat titles (more specific selector)
         const chatElements = document.querySelectorAll('[data-testid="cell-frame-title"], [data-testid="conversation-info-header"] span[title], #pane-side [role="row"] span[title]');
@@ -5283,12 +5549,16 @@ ${transcript || '(não consegui ler mensagens)'}
         for (const el of limitedElements) {
           const title = el.getAttribute('title') || el.textContent;
           if (title) {
-            nums.push(...parseNumbersFromText(title));
+            const nums = parseNumbersFromText(title);
+            for (const num of nums) {
+              contacts.push(`${title},${num}`);
+            }
           }
         }
         
-        const unique = uniq(nums);
+        const unique = uniq(contacts);
         resultArea.value = unique.join('\n');
+        updateCount();
         statusDiv.textContent = `✅ ${unique.length} contatos encontrados`;
         statusDiv.className = 'status ok';
       } catch (e) {
@@ -5297,16 +5567,87 @@ ${transcript || '(não consegui ler mensagens)'}
       }
     });
     
+    extractGroupsBtn.addEventListener('click', async () => {
+      statusDiv.textContent = '🔄 Extraindo de grupos...';
+      statusDiv.className = 'status ok';
+      extractGroupsBtn.disabled = true;
+      
+      try {
+        // This is a simplified version - actual group extraction would require more complex logic
+        statusDiv.textContent = '⚠️ Funcionalidade completa disponível no popup da extensão';
+        statusDiv.className = 'status ok';
+      } catch (e) {
+        statusDiv.textContent = `❌ Erro: ${e.message}`;
+        statusDiv.className = 'status err';
+      } finally {
+        extractGroupsBtn.disabled = false;
+      }
+    });
+    
+    addContactBtn.addEventListener('click', () => {
+      const name = dropdown.querySelector('#contactName').value.trim();
+      const phone = dropdown.querySelector('#contactPhone').value.trim();
+      const tags = dropdown.querySelector('#contactTags').value.trim();
+      
+      if (!phone) {
+        statusDiv.textContent = '❌ Digite um número de telefone';
+        statusDiv.className = 'status err';
+        return;
+      }
+      
+      const line = name ? `${name},${phone}${tags ? ',' + tags : ''}` : phone;
+      resultArea.value = resultArea.value ? resultArea.value + '\n' + line : line;
+      
+      dropdown.querySelector('#contactName').value = '';
+      dropdown.querySelector('#contactPhone').value = '';
+      dropdown.querySelector('#contactTags').value = '';
+      
+      updateCount();
+      statusDiv.textContent = '✅ Contato adicionado!';
+      statusDiv.className = 'status ok';
+    });
+    
+    importBtn.addEventListener('click', () => {
+      importFile.click();
+    });
+    
+    importFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const content = ev.target.result;
+          const lines = content.split(/\r?\n/).filter(l => l.trim());
+          
+          // Skip header if present
+          const dataLines = lines[0].toLowerCase().includes('nome') || lines[0].toLowerCase().includes('telefone')
+            ? lines.slice(1)
+            : lines;
+          
+          resultArea.value = dataLines.join('\n');
+          updateCount();
+          statusDiv.textContent = `✅ ${dataLines.length} contatos importados!`;
+          statusDiv.className = 'status ok';
+        } catch (err) {
+          statusDiv.textContent = `❌ Erro ao importar: ${err.message}`;
+          statusDiv.className = 'status err';
+        }
+      };
+      reader.readAsText(file);
+    });
+    
     downloadBtn.addEventListener('click', () => {
       try {
-        const nums = resultArea.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-        if (!nums.length) {
+        const lines = resultArea.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+        if (!lines.length) {
           statusDiv.textContent = '❌ Nenhum contato para baixar';
           statusDiv.className = 'status err';
           return;
         }
         
-        const csv = ['numero', ...nums].map(csvEscape).join('\n');
+        const csv = ['Nome,Telefone,Tags', ...lines].map(csvEscape).join('\n');
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -5322,6 +5663,8 @@ ${transcript || '(não consegui ler mensagens)'}
         statusDiv.className = 'status err';
       }
     });
+    
+    updateCount();
   }
 
   // Mount when possible (document_start friendly)

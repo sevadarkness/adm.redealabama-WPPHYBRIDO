@@ -190,7 +190,7 @@ function whatsapp_insert_message(PDO $pdo, int $conversaId, string $direction, s
     return (int)$pdo->lastInsertId();
 }
 
-function whatsapp_build_history_for_llm(PDO $pdo, int $conversaId, int $limit = 10): array
+function whatsapp_build_history_for_llm(PDO $pdo, int $conversaId, int $limit = 10, int $maxChars = 8000): array
 {
     $sql = "SELECT direction, author, conteudo 
             FROM whatsapp_mensagens 
@@ -217,7 +217,18 @@ function whatsapp_build_history_for_llm(PDO $pdo, int $conversaId, int $limit = 
         ];
     }
 
-    return $history;
+    // Truncar se exceder limite de caracteres para prevenir crescimento descontrolado
+    $totalChars = 0;
+    $truncated = [];
+    foreach (array_reverse($history) as $msg) {
+        $totalChars += strlen($msg['content']);
+        if ($totalChars > $maxChars) {
+            break;
+        }
+        array_unshift($truncated, $msg);
+    }
+
+    return $truncated ?: $history;
 }
 
 

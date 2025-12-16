@@ -2,7 +2,13 @@
 // SISTEMA DE LICENÇA E AUTENTICAÇÃO
 // ═══════════════════════════════════════════════════════════════════
 
-// Chave de licença (ofuscada em Base64)
+// NOTA DE SEGURANÇA: Esta é uma implementação básica de licenciamento client-side.
+// A chave pode ser decodificada por qualquer pessoa com acesso ao código fonte.
+// Para produção, considere: validação server-side, criptografia robusta, ou 
+// sistema de licenças individuais por usuário com backend.
+// Adequado apenas para: controle básico de acesso, distribuição interna, ou prototipagem.
+
+// Chave de licença (ofuscada em Base64 - básica)
 const LICENSE_KEY_ENCODED = "Q3Jpc3RpQG5vMTIz"; // Base64 de "Cristi@no123"
 
 // Elementos das telas
@@ -580,6 +586,7 @@ document.getElementById("btnCancelReconfig")?.addEventListener("click", () => {
 document.getElementById("btnConfirmReconfig")?.addEventListener("click", async () => {
   const licenseInput = document.getElementById("reconfigLicenseKey").value.trim();
   const modalReconfig = document.getElementById("modalReconfig");
+  const reconfigInput = document.getElementById("reconfigLicenseKey");
   
   if (validateLicense(licenseInput)) {
     modalReconfig.classList.add("hidden");
@@ -591,7 +598,13 @@ document.getElementById("btnConfirmReconfig")?.addEventListener("click", async (
       document.getElementById("openaiApiKey").value = data.openaiApiKey;
     }
   } else {
-    alert("❌ Chave de licença inválida!");
+    // Show error with shake animation
+    reconfigInput.classList.add("shake");
+    reconfigInput.style.borderColor = "#ef4444";
+    setTimeout(() => {
+      reconfigInput.classList.remove("shake");
+      reconfigInput.style.borderColor = "";
+    }, 500);
   }
 });
 

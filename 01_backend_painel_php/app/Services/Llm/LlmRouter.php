@@ -19,7 +19,7 @@ final class LlmRouter
     public static function normalize(array $settings): array
     {
         $provider = $settings['llm_provider'] ?? getenv('ALABAMA_LLM_PROVIDER') ?: 'openai';
-        $model    = $settings['llm_model']    ?? getenv('ALABAMA_LLM_MODEL')    ?: 'gpt-4.1-mini';
+        $model    = $settings['llm_model']    ?? getenv('ALABAMA_LLM_MODEL')    ?: 'gpt-4o-mini';
 
         $settings['llm_provider'] = $provider;
         $settings['llm_model']    = $model;

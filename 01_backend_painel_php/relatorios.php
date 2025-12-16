@@ -103,72 +103,33 @@ $comissao_operador = $faturamento_bruto * 0.10;
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <link rel="stylesheet" href="alabama-theme.css">
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relatórios de Vendas</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Relatórios de Vendas - Rede Alabama</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/alabama-design-system.css">
+    <link rel="stylesheet" href="alabama-theme.css">
+    <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
     <style>
-        :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #3498db;
-            --success-color: #27ae60;
-            --warning-color: #f1c40f;
-            --danger-color: #e74c3c;
-        }
-
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background-color: #f8f9fa;
-        }
-
         .dashboard-header {
-            background: var(--primary-color);
             padding: 1.5rem;
-            border-radius: 10px;
+            border-radius: var(--al-radius-lg);
             margin-bottom: 1.5rem;
-        }
-
-        .card-custom {
-            border: none;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s;
         }
 
         .data-table {
-            background: white;
-            border-radius: 10px;
+            border-radius: var(--al-radius-lg);
             overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             margin-bottom: 1.5rem;
         }
 
-        .table thead th {
-            background: var(--primary-color) !important;
-            color: white !important;
-            border: none;
-        }
-
         .filter-card {
-            background: white;
             padding: 1rem;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        }
-
-        .commission-header {
-            background: linear-gradient(45deg, #28a745, #218838);
-        }
-
-        .sales-header {
-            background: linear-gradient(45deg, #007bff, #0069d9);
-        }
-
-        .stock-header {
-            background: linear-gradient(45deg, #ffc107, #e0a800);
+            border-radius: var(--al-radius-lg);
         }
 
         .table-responsive {
@@ -177,7 +138,7 @@ $comissao_operador = $faturamento_bruto * 0.10;
         }
 
         .bg-prejuizo {
-            background-color: #ffcccc; /* Fundo levemente vermelho */
+            background-color: rgba(239, 68, 68, 0.1);
         }
 
         @media (max-width: 768px) {
@@ -191,7 +152,7 @@ $comissao_operador = $faturamento_bruto * 0.10;
         }
     </style>
 </head>
-<body>
+<body class="al-body">
 <div class="container-fluid mt-4">
     <!-- Cabeçalho -->
     <div class="dashboard-header text-center text-white">
@@ -392,6 +353,7 @@ function exportToExcel() {
     alert('Funcionalidade de exportação em desenvolvimento!');
 }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <?php include 'footer.php'; ?>
 </body>
 </html>

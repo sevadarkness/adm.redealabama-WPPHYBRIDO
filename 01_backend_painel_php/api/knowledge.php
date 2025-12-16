@@ -44,16 +44,23 @@ function getDB() {
     global $pdo;
     if (isset($pdo)) return $pdo;
     
+    // Verificar se constantes de DB estão definidas
+    if (!defined('DB_HOST') || !defined('DB_NAME') || !defined('DB_USER')) {
+        error_log('Knowledge API: Database credentials not configured');
+        jsonResponse(['ok' => false, 'error' => 'Database not configured'], 500);
+    }
+    
     // Fallback se não houver conexão global
     try {
         $pdo = new PDO(
-            'mysql:host=' . (defined('DB_HOST') ? DB_HOST : 'localhost') . ';dbname=' . (defined('DB_NAME') ? DB_NAME : 'alabama_db') . ';charset=utf8mb4',
-            defined('DB_USER') ? DB_USER : 'root',
+            'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4',
+            DB_USER,
             defined('DB_PASS') ? DB_PASS : ''
         );
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         return $pdo;
     } catch (PDOException $e) {
+        error_log('Knowledge API: Database connection failed - ' . $e->getMessage());
         jsonResponse(['ok' => false, 'error' => 'Database connection failed'], 500);
     }
 }
@@ -152,10 +159,23 @@ function mergeArrayByKey($serverArray, $localArray, $keyField, $isArrayKey = fal
     $merged = [];
     $seen = [];
     
+    // Função helper para criar chave estável de array
+    $makeArrayKey = function($arr) {
+        if (!is_array($arr)) return '';
+        // Ordenar array antes de serializar para comparação consistente
+        sort($arr);
+        return json_encode($arr, JSON_UNESCAPED_UNICODE);
+    };
+    
     // Adicionar itens do servidor primeiro
     foreach ($serverArray as $item) {
-        $key = $isArrayKey ? json_encode($item[$keyField] ?? []) : ($item[$keyField] ?? '');
-        if (!empty($key) && !isset($seen[$key])) {
+        if (!is_array($item)) continue;
+        
+        $key = $isArrayKey 
+            ? $makeArrayKey($item[$keyField] ?? [])
+            : (string)($item[$keyField] ?? '');
+            
+        if ($key !== '' && !isset($seen[$key])) {
             $merged[] = $item;
             $seen[$key] = true;
         }
@@ -163,8 +183,13 @@ function mergeArrayByKey($serverArray, $localArray, $keyField, $isArrayKey = fal
     
     // Adicionar itens locais que não existem no servidor
     foreach ($localArray as $item) {
-        $key = $isArrayKey ? json_encode($item[$keyField] ?? []) : ($item[$keyField] ?? '');
-        if (!empty($key) && !isset($seen[$key])) {
+        if (!is_array($item)) continue;
+        
+        $key = $isArrayKey 
+            ? $makeArrayKey($item[$keyField] ?? [])
+            : (string)($item[$keyField] ?? '');
+            
+        if ($key !== '' && !isset($seen[$key])) {
             $merged[] = $item;
             $seen[$key] = true;
         }

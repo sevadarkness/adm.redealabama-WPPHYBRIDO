@@ -1210,6 +1210,7 @@
 
   const KNOWLEDGE_SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutos
   let lastKnowledgeSync = 0;
+  let knowledgeSyncIntervalId = null;
 
   // Função para buscar conhecimento do servidor
   async function fetchServerKnowledge() {
@@ -1329,9 +1330,13 @@
         return data.knowledge;
       }
       
+      // Atualizar timestamp mesmo em falha para evitar retry excessivo
+      lastKnowledgeSync = Date.now();
       return localKnowledge;
     } catch (e) {
       debugLog('⚠️ Falha ao sincronizar conhecimento:', e.message);
+      // Atualizar timestamp mesmo em erro para evitar retry excessivo
+      lastKnowledgeSync = Date.now();
       return localKnowledge;
     }
   }
@@ -1354,6 +1359,12 @@
 
   // Sincronização automática periódica
   async function startKnowledgeAutoSync() {
+    // Limpar interval anterior se existir
+    if (knowledgeSyncIntervalId) {
+      clearInterval(knowledgeSyncIntervalId);
+      knowledgeSyncIntervalId = null;
+    }
+    
     // Sincronizar imediatamente ao iniciar
     try {
       const localKnowledge = await getKnowledge();
@@ -1363,7 +1374,7 @@
     }
     
     // Configurar sincronização periódica
-    setInterval(async () => {
+    knowledgeSyncIntervalId = setInterval(async () => {
       try {
         const localKnowledge = await getKnowledge();
         await syncKnowledge(localKnowledge);
@@ -1373,6 +1384,15 @@
     }, KNOWLEDGE_SYNC_INTERVAL);
     
     debugLog('✅ Auto-sync de conhecimento configurado (intervalo: 5 min)');
+  }
+  
+  // Função para parar auto-sync (útil para cleanup)
+  function stopKnowledgeAutoSync() {
+    if (knowledgeSyncIntervalId) {
+      clearInterval(knowledgeSyncIntervalId);
+      knowledgeSyncIntervalId = null;
+      debugLog('⏹️ Auto-sync de conhecimento parado');
+    }
   }
 
   function parseProductsCSV(csvText) {

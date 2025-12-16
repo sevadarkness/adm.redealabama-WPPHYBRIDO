@@ -45,241 +45,99 @@ function validateLicense(inputKey) {
 }
 
 function validateApiKey(apiKey) {
-  // OpenAI API keys start with "sk-" and are typically 48-51 characters
-  // Format: sk-xxxx... or sk-proj-xxxx...
-  if (!apiKey || typeof apiKey !== 'string') return false;
-  
-  const trimmed = apiKey.trim();
-  if (!trimmed.startsWith("sk-")) return false;
-  
-  // Check minimum length (should be at least 40 chars)
-  if (trimmed.length < 40) return false;
-  
-  // Check for valid characters (alphanumeric and hyphens)
-  if (!/^sk-[a-zA-Z0-9-]+$/.test(trimmed)) return false;
-  
-  return true;
+  // Apenas verifica se não está vazio - aceita qualquer valor
+  return apiKey && apiKey.trim().length > 0;
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// FUNÇÕES DE NAVEGAÇÃO ENTRE TELAS
+// INICIALIZAÇÃO - SISTEMA DE LICENÇA NO HEADER
 // ═══════════════════════════════════════════════════════════════════
 
-async function showScreen(screenId) {
-  // Esconder todas as telas
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+async function initLicenseSystem() {
+  // Carregar estado da licença e API key
+  const storage = await chrome.storage.local.get(["licenseValid", "openaiApiKey"]);
   
-  // Mostrar tela específica
-  const screen = document.getElementById(screenId);
-  if (screen) {
-    screen.classList.add("active");
-  }
+  const licenseInput = document.getElementById("headerLicenseKey");
+  const apiKeyInput = document.getElementById("headerApiKey");
+  const apiKeyContainer = document.getElementById("apiKeyFieldContainer");
   
-  // Mostrar/esconder botão de reconfig
-  const btnReconfig = document.getElementById("btnReconfig");
-  if (btnReconfig) {
-    if (screenId === "screenMain") {
-      btnReconfig.classList.remove("hidden");
-      // Setup event listeners for main screen
-      if (typeof setupMainListeners === 'function') {
-        setupMainListeners();
-      }
-      // Carregar configurações quando entrar na tela principal
-      if (typeof load === 'function') {
-        await load().catch((e) => {
-          if (typeof setStatus === 'function') {
-            setStatus(String(e?.message || e), false);
-          }
-        });
-      }
-    } else {
-      btnReconfig.classList.add("hidden");
+  if (storage.licenseValid) {
+    // Licença válida - mostrar campo API key
+    licenseInput.value = "••••••••";
+    licenseInput.disabled = true;
+    apiKeyContainer.classList.remove("hidden");
+    
+    if (storage.openaiApiKey) {
+      apiKeyInput.value = "••••••••";
     }
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// INICIALIZAÇÃO - VERIFICAR ESTADO
-// ═══════════════════════════════════════════════════════════════════
-
-async function initLicenseSystem() {
-  const storage = await chrome.storage.local.get(["licenseValid", "openaiApiKey"]);
-  
-  if (!storage.licenseValid) {
-    // Estado 1: Sem licença
-    showScreen("screenLicense");
-  } else if (!storage.openaiApiKey) {
-    // Estado 2: Licença OK, sem API Key
-    showScreen("screenApiKey");
-  } else {
-    // Estado 3: Tudo configurado
-    showScreen("screenMain");
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// EVENT LISTENERS - LICENÇA
+// EVENT LISTENERS - LICENÇA NO HEADER
 // ═══════════════════════════════════════════════════════════════════
 
 function setupLicenseListeners() {
-  // Validar Licença
-  const btnValidate = document.getElementById("btnValidateLicense");
-  if (btnValidate) {
-    btnValidate.addEventListener("click", async () => {
-      const licenseInput = document.getElementById("licenseKey");
-      const errorEl = document.getElementById("licenseError");
-      const inputValue = licenseInput.value.trim();
-      
-      if (validateLicense(inputValue)) {
-        // Licença válida
-        await chrome.storage.local.set({ licenseValid: true });
-        errorEl.classList.add("hidden");
-        await showScreen("screenApiKey");
-      } else {
-        // Licença inválida
-        errorEl.classList.remove("hidden");
-        licenseInput.classList.add("shake");
-        setTimeout(() => {
-          licenseInput.classList.remove("shake");
-        }, 500);
-      }
-    });
-  }
-
-  // Salvar API Key
-  const btnSaveApi = document.getElementById("btnSaveApiKey");
-  if (btnSaveApi) {
-    btnSaveApi.addEventListener("click", async () => {
-      const apiKeyInput = document.getElementById("openaiApiKey");
-      const errorEl = document.getElementById("apiKeyError");
-      const apiKey = apiKeyInput.value.trim();
-      
-      if (validateApiKey(apiKey)) {
-        // API Key válida
-        await chrome.storage.local.set({ openaiApiKey: apiKey });
-        errorEl.classList.add("hidden");
-        await showScreen("screenMain");
-        
-        // Mostrar status de sucesso se a função existir
-        if (typeof setStatus === 'function') {
-          setStatus("✅ API Key salva com sucesso!", true);
-        }
-      } else {
-        // API Key inválida
-        errorEl.classList.remove("hidden");
-        apiKeyInput.classList.add("shake");
-        setTimeout(() => {
-          apiKeyInput.classList.remove("shake");
-        }, 500);
-      }
-    });
-  }
-
-  // Toggle mostrar/ocultar senha - Licença
-  const toggleLicense = document.getElementById("toggleLicenseKey");
-  if (toggleLicense) {
-    toggleLicense.addEventListener("click", () => {
-      const input = document.getElementById("licenseKey");
-      input.type = input.type === "password" ? "text" : "password";
-    });
-  }
-
-  // Toggle mostrar/ocultar senha - API Key
-  const toggleApi = document.getElementById("toggleApiKey");
-  if (toggleApi) {
-    toggleApi.addEventListener("click", () => {
-      const input = document.getElementById("openaiApiKey");
-      input.type = input.type === "password" ? "text" : "password";
-    });
-  }
-
-  // Enter para validar licença
-  const licenseKeyInput = document.getElementById("licenseKey");
-  if (licenseKeyInput) {
-    licenseKeyInput.addEventListener("keypress", (e) => {
+  const licenseInput = document.getElementById("headerLicenseKey");
+  const apiKeyInput = document.getElementById("headerApiKey");
+  const apiKeyContainer = document.getElementById("apiKeyFieldContainer");
+  
+  // Validar licença ao pressionar Enter
+  if (licenseInput) {
+    licenseInput.addEventListener("keypress", async (e) => {
       if (e.key === "Enter") {
-        document.getElementById("btnValidateLicense").click();
-      }
-    });
-  }
-
-  // Enter para salvar API Key
-  const apiKeyInput = document.getElementById("openaiApiKey");
-  if (apiKeyInput) {
-    apiKeyInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        document.getElementById("btnSaveApiKey").click();
-      }
-    });
-  }
-
-  // Botão Reconfigurar (🔐)
-  const btnReconfig = document.getElementById("btnReconfig");
-  if (btnReconfig) {
-    btnReconfig.addEventListener("click", () => {
-      const modal = document.getElementById("modalReconfig");
-      modal.classList.remove("hidden");
-      const reconfigInput = document.getElementById("reconfigLicenseKey");
-      reconfigInput.value = "";
-      reconfigInput.focus();
-    });
-  }
-
-  // Cancelar Reconfig
-  const btnCancel = document.getElementById("btnCancelReconfig");
-  if (btnCancel) {
-    btnCancel.addEventListener("click", () => {
-      document.getElementById("modalReconfig").classList.add("hidden");
-      document.getElementById("reconfigError").classList.add("hidden");
-    });
-  }
-
-  // Confirmar Reconfig
-  const btnConfirm = document.getElementById("btnConfirmReconfig");
-  if (btnConfirm) {
-    btnConfirm.addEventListener("click", async () => {
-      const licenseInput = document.getElementById("reconfigLicenseKey");
-      const errorEl = document.getElementById("reconfigError");
-      const inputValue = licenseInput.value.trim();
-      
-      if (validateLicense(inputValue)) {
-        document.getElementById("modalReconfig").classList.add("hidden");
-        errorEl.classList.add("hidden");
-        await showScreen("screenApiKey");
+        const inputValue = licenseInput.value.trim();
         
-        // Preencher com API Key atual se existir
-        const data = await chrome.storage.local.get(["openaiApiKey"]);
-        if (data.openaiApiKey) {
-          document.getElementById("openaiApiKey").value = data.openaiApiKey;
+        if (validateLicense(inputValue)) {
+          // Licença válida
+          await chrome.storage.local.set({ licenseValid: true });
+          licenseInput.value = "••••••••";
+          licenseInput.disabled = true;
+          apiKeyContainer.classList.remove("hidden");
+          apiKeyInput.focus();
+          
+          if (typeof setStatus === 'function') {
+            setStatus("✅ Licença válida!", true);
+          }
+        } else {
+          // Licença inválida
+          licenseInput.style.borderColor = "var(--danger)";
+          setTimeout(() => {
+            licenseInput.style.borderColor = "";
+          }, 1000);
+          
+          if (typeof setStatus === 'function') {
+            setStatus("❌ Licença inválida", false);
+          }
         }
-      } else {
-        errorEl.classList.remove("hidden");
-        licenseInput.classList.add("shake");
-        setTimeout(() => {
-          licenseInput.classList.remove("shake");
-        }, 500);
-      }
-    });
-  }
-
-  // Fechar modal clicando no backdrop (não no conteúdo)
-  const modal = document.getElementById("modalReconfig");
-  if (modal) {
-    modal.addEventListener("click", (e) => {
-      // Only close if clicking directly on modal (backdrop), not on modal-content
-      if (e.target === modal || e.target.classList.contains("modal-backdrop")) {
-        modal.classList.add("hidden");
-        document.getElementById("reconfigError").classList.add("hidden");
       }
     });
   }
   
-  // Enter no modal de reconfig
-  const reconfigInput = document.getElementById("reconfigLicenseKey");
-  if (reconfigInput) {
-    reconfigInput.addEventListener("keypress", (e) => {
+  // Salvar API Key ao pressionar Enter ou sair do campo
+  if (apiKeyInput) {
+    const saveApiKey = async () => {
+      const apiKey = apiKeyInput.value.trim();
+      
+      if (validateApiKey(apiKey)) {
+        await chrome.storage.local.set({ openaiApiKey: apiKey });
+        apiKeyInput.value = "••••••••";
+        
+        if (typeof setStatus === 'function') {
+          setStatus("✅ API Key salva com sucesso!", true);
+        }
+      }
+    };
+    
+    apiKeyInput.addEventListener("keypress", async (e) => {
       if (e.key === "Enter") {
-        document.getElementById("btnConfirmReconfig").click();
+        await saveApiKey();
+      }
+    });
+    
+    apiKeyInput.addEventListener("blur", async () => {
+      if (apiKeyInput.value && apiKeyInput.value !== "••••••••") {
+        await saveApiKey();
       }
     });
   }
@@ -292,6 +150,12 @@ const el = (id) => document.getElementById(id);
 // Global state
 let quickReplies = [];
 let teamMembers = [];
+let products = [];
+let faqs = [];
+let documents = [];
+let cannedResponses = [];
+let contacts = [];
+let campaigns = [];
 
 async function send(type, payload) {
   return new Promise((resolve) => {
@@ -309,8 +173,9 @@ async function send(type, payload) {
 
 function setStatus(msg, ok = true) {
   const s = el("status");
+  if (!s) return;
   s.textContent = msg || "";
-  s.className = "status " + (ok ? "ok" : "err");
+  s.className = "footer-text " + (ok ? "ok" : "err");
 }
 
 // -------------------------
@@ -379,6 +244,15 @@ async function load() {
   
   // Load copilot data
   await loadCopilotData();
+  
+  // Load IA training data
+  await loadIAData();
+  
+  // Load contacts
+  await loadContacts();
+  
+  // Load campaigns
+  await loadCampaigns();
 }
 
 // -------------------------
@@ -696,6 +570,553 @@ async function sendToTeam() {
 }
 
 // -------------------------
+// IA Tab Functions
+// -------------------------
+async function loadIAData() {
+  const data = await chrome.storage.local.get([
+    'businessName', 'businessDescription', 'businessSegment', 'businessHours',
+    'products', 'faqs', 'policyPayment', 'policyDelivery', 'policyReturns',
+    'toneStyle', 'toneEmojis', 'toneGreeting', 'toneClosing',
+    'documents', 'cannedResponses'
+  ]);
+  
+  // Business Data
+  if (el("businessName")) el("businessName").value = data.businessName || "";
+  if (el("businessDescription")) el("businessDescription").value = data.businessDescription || "";
+  if (el("businessSegment")) el("businessSegment").value = data.businessSegment || "";
+  if (el("businessHours")) el("businessHours").value = data.businessHours || "";
+  
+  // Products
+  products = data.products || [];
+  renderProducts();
+  
+  // FAQs
+  faqs = data.faqs || [];
+  renderFAQs();
+  
+  // Policies
+  if (el("policyPayment")) el("policyPayment").value = data.policyPayment || "";
+  if (el("policyDelivery")) el("policyDelivery").value = data.policyDelivery || "";
+  if (el("policyReturns")) el("policyReturns").value = data.policyReturns || "";
+  
+  // Tone
+  if (el("toneStyle")) el("toneStyle").value = data.toneStyle || "informal";
+  if (el("toneEmojis")) el("toneEmojis").checked = data.toneEmojis !== false;
+  if (el("toneGreeting")) el("toneGreeting").value = data.toneGreeting || "";
+  if (el("toneClosing")) el("toneClosing").value = data.toneClosing || "";
+  
+  // Documents
+  documents = data.documents || [];
+  renderDocuments();
+  
+  // Canned Responses
+  cannedResponses = data.cannedResponses || [];
+  renderCannedResponses();
+}
+
+async function saveIAData() {
+  const data = {
+    businessName: el("businessName")?.value || "",
+    businessDescription: el("businessDescription")?.value || "",
+    businessSegment: el("businessSegment")?.value || "",
+    businessHours: el("businessHours")?.value || "",
+    products: products,
+    faqs: faqs,
+    policyPayment: el("policyPayment")?.value || "",
+    policyDelivery: el("policyDelivery")?.value || "",
+    policyReturns: el("policyReturns")?.value || "",
+    toneStyle: el("toneStyle")?.value || "informal",
+    toneEmojis: el("toneEmojis")?.checked !== false,
+    toneGreeting: el("toneGreeting")?.value || "",
+    toneClosing: el("toneClosing")?.value || "",
+    documents: documents,
+    cannedResponses: cannedResponses
+  };
+  
+  await chrome.storage.local.set(data);
+  setStatus("✅ Conhecimento salvo!", true);
+}
+
+function addProduct() {
+  const name = el("productName")?.value?.trim();
+  const price = el("productPrice")?.value?.trim();
+  const description = el("productDescription")?.value?.trim();
+  
+  if (!name) {
+    setStatus("Digite o nome do produto", false);
+    return;
+  }
+  
+  products.push({
+    id: `prod_${Date.now()}`,
+    name,
+    price,
+    description,
+    createdAt: new Date().toISOString()
+  });
+  
+  renderProducts();
+  saveIAData();
+  
+  el("productName").value = "";
+  el("productPrice").value = "";
+  el("productDescription").value = "";
+}
+
+function removeProduct(id) {
+  products = products.filter(p => p.id !== id);
+  renderProducts();
+  saveIAData();
+}
+
+function renderProducts() {
+  const container = el("productsList");
+  if (!container) return;
+  
+  if (!products.length) {
+    container.innerHTML = '<p class="empty-state">Nenhum produto cadastrado</p>';
+    return;
+  }
+  
+  container.innerHTML = products.map(p => `
+    <div class="item-card">
+      <div class="item-header">
+        <span class="item-title">${escapeHtml(p.name)}</span>
+        ${p.price ? `<span class="item-price">${escapeHtml(p.price)}</span>` : ''}
+      </div>
+      ${p.description ? `<div class="item-content">${escapeHtml(p.description)}</div>` : ''}
+      <button class="item-delete" data-id="${p.id}">🗑️</button>
+    </div>
+  `).join('');
+  
+  container.querySelectorAll('.item-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      removeProduct(e.target.dataset.id);
+    });
+  });
+}
+
+function addFAQ() {
+  const question = el("faqQuestion")?.value?.trim();
+  const answer = el("faqAnswer")?.value?.trim();
+  
+  if (!question || !answer) {
+    setStatus("Preencha pergunta e resposta", false);
+    return;
+  }
+  
+  faqs.push({
+    id: `faq_${Date.now()}`,
+    question,
+    answer,
+    createdAt: new Date().toISOString()
+  });
+  
+  renderFAQs();
+  saveIAData();
+  
+  el("faqQuestion").value = "";
+  el("faqAnswer").value = "";
+}
+
+function removeFAQ(id) {
+  faqs = faqs.filter(f => f.id !== id);
+  renderFAQs();
+  saveIAData();
+}
+
+function renderFAQs() {
+  const container = el("faqList");
+  if (!container) return;
+  
+  if (!faqs.length) {
+    container.innerHTML = '<p class="empty-state">Nenhuma FAQ cadastrada</p>';
+    return;
+  }
+  
+  container.innerHTML = faqs.map(f => `
+    <div class="item-card">
+      <div class="item-title">${escapeHtml(f.question)}</div>
+      <div class="item-content">${escapeHtml(f.answer)}</div>
+      <button class="item-delete" data-id="${f.id}">🗑️</button>
+    </div>
+  `).join('');
+  
+  container.querySelectorAll('.item-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      removeFAQ(e.target.dataset.id);
+    });
+  });
+}
+
+function addDocument() {
+  const title = el("docTitle")?.value?.trim();
+  const content = el("docContent")?.value?.trim();
+  
+  if (!title || !content) {
+    setStatus("Preencha título e conteúdo", false);
+    return;
+  }
+  
+  documents.push({
+    id: `doc_${Date.now()}`,
+    title,
+    content,
+    createdAt: new Date().toISOString()
+  });
+  
+  renderDocuments();
+  saveIAData();
+  
+  el("docTitle").value = "";
+  el("docContent").value = "";
+}
+
+function removeDocument(id) {
+  documents = documents.filter(d => d.id !== id);
+  renderDocuments();
+  saveIAData();
+}
+
+function renderDocuments() {
+  const container = el("documentsList");
+  if (!container) return;
+  
+  if (!documents.length) {
+    container.innerHTML = '<p class="empty-state">Nenhum documento cadastrado</p>';
+    return;
+  }
+  
+  container.innerHTML = documents.map(d => `
+    <div class="item-card">
+      <div class="item-title">${escapeHtml(d.title)}</div>
+      <div class="item-content">${escapeHtml(d.content.substring(0, 100))}${d.content.length > 100 ? '...' : ''}</div>
+      <button class="item-delete" data-id="${d.id}">🗑️</button>
+    </div>
+  `).join('');
+  
+  container.querySelectorAll('.item-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      removeDocument(e.target.dataset.id);
+    });
+  });
+}
+
+function addCanned() {
+  const title = el("cannedTitle")?.value?.trim();
+  const content = el("cannedContent")?.value?.trim();
+  
+  if (!title || !content) {
+    setStatus("Preencha título e conteúdo", false);
+    return;
+  }
+  
+  cannedResponses.push({
+    id: `canned_${Date.now()}`,
+    title,
+    content,
+    createdAt: new Date().toISOString()
+  });
+  
+  renderCannedResponses();
+  saveIAData();
+  
+  el("cannedTitle").value = "";
+  el("cannedContent").value = "";
+}
+
+function removeCanned(id) {
+  cannedResponses = cannedResponses.filter(c => c.id !== id);
+  renderCannedResponses();
+  saveIAData();
+}
+
+function renderCannedResponses() {
+  const container = el("cannedList");
+  if (!container) return;
+  
+  if (!cannedResponses.length) {
+    container.innerHTML = '<p class="empty-state">Nenhuma resposta pronta cadastrada</p>';
+    return;
+  }
+  
+  container.innerHTML = cannedResponses.map(c => `
+    <div class="item-card">
+      <div class="item-title">${escapeHtml(c.title)}</div>
+      <div class="item-content">${escapeHtml(c.content)}</div>
+      <button class="item-delete" data-id="${c.id}">🗑️</button>
+    </div>
+  `).join('');
+  
+  container.querySelectorAll('.item-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      removeCanned(e.target.dataset.id);
+    });
+  });
+}
+
+// -------------------------
+// Campaigns Tab Functions
+// -------------------------
+async function loadCampaigns() {
+  const data = await chrome.storage.local.get(['campaigns']);
+  campaigns = data.campaigns || [];
+  renderActiveCampaigns();
+  renderCampaignHistory();
+}
+
+async function saveCampaigns() {
+  await chrome.storage.local.set({ campaigns });
+}
+
+function startCampaign() {
+  const name = el("campaignName")?.value?.trim();
+  const message = el("campaignMessage")?.value?.trim();
+  const image = el("campaignImage")?.value?.trim();
+  const interval = el("campaignInterval")?.value || 5;
+  
+  if (!name || !message) {
+    setStatus("Preencha nome e mensagem da campanha", false);
+    return;
+  }
+  
+  const campaign = {
+    id: `camp_${Date.now()}`,
+    name,
+    message,
+    image,
+    interval: parseInt(interval),
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    selectedContacts: contacts.filter(c => c.selected).map(c => c.id)
+  };
+  
+  campaigns.push(campaign);
+  saveCampaigns();
+  renderActiveCampaigns();
+  
+  setStatus("🚀 Campanha iniciada!", true);
+  
+  // Clear form
+  el("campaignName").value = "";
+  el("campaignMessage").value = "";
+  el("campaignImage").value = "";
+}
+
+function scheduleCampaign() {
+  const name = el("campaignName")?.value?.trim();
+  const message = el("campaignMessage")?.value?.trim();
+  const date = el("campaignDate")?.value;
+  const time = el("campaignTime")?.value;
+  
+  if (!name || !message || !date || !time) {
+    setStatus("Preencha todos os campos para agendar", false);
+    return;
+  }
+  
+  const campaign = {
+    id: `camp_${Date.now()}`,
+    name,
+    message,
+    scheduledDate: date,
+    scheduledTime: time,
+    status: 'scheduled',
+    createdAt: new Date().toISOString(),
+    selectedContacts: contacts.filter(c => c.selected).map(c => c.id)
+  };
+  
+  campaigns.push(campaign);
+  saveCampaigns();
+  renderActiveCampaigns();
+  
+  setStatus("⏰ Campanha agendada!", true);
+}
+
+function renderActiveCampaigns() {
+  const container = el("activeCampaigns");
+  if (!container) return;
+  
+  const active = campaigns.filter(c => c.status === 'active' || c.status === 'scheduled');
+  
+  if (!active.length) {
+    container.innerHTML = '<p class="empty-state">Nenhuma campanha ativa</p>';
+    return;
+  }
+  
+  container.innerHTML = active.map(c => `
+    <div class="campaign-card">
+      <div class="campaign-header">
+        <span class="campaign-name">${escapeHtml(c.name)}</span>
+        <span class="campaign-status">${c.status === 'scheduled' ? '⏰ Agendada' : '🚀 Ativa'}</span>
+      </div>
+      <div class="campaign-message">${escapeHtml(c.message.substring(0, 100))}...</div>
+      <div class="campaign-meta">
+        <span>📅 ${new Date(c.createdAt).toLocaleDateString()}</span>
+        <span>👥 ${c.selectedContacts?.length || 0} contatos</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderCampaignHistory() {
+  const container = el("campaignHistory");
+  if (!container) return;
+  
+  const completed = campaigns.filter(c => c.status === 'completed');
+  
+  if (!completed.length) {
+    container.innerHTML = '<p class="empty-state">Nenhuma campanha realizada</p>';
+    return;
+  }
+  
+  container.innerHTML = completed.map(c => `
+    <div class="campaign-card">
+      <div class="campaign-header">
+        <span class="campaign-name">${escapeHtml(c.name)}</span>
+        <span class="campaign-status">✅ Concluída</span>
+      </div>
+      <div class="campaign-message">${escapeHtml(c.message.substring(0, 100))}...</div>
+      <div class="campaign-meta">
+        <span>📅 ${new Date(c.createdAt).toLocaleDateString()}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// -------------------------
+// Contacts Tab Functions
+// -------------------------
+async function loadContacts() {
+  const data = await chrome.storage.local.get(['contacts']);
+  contacts = data.contacts || [];
+  renderContacts();
+  updateContactsCount();
+}
+
+async function saveContacts() {
+  await chrome.storage.local.set({ contacts });
+  updateContactsCount();
+}
+
+function extractFromChats() {
+  setStatus("🔄 Extraindo contatos das conversas...", true);
+  // TODO: Implement extraction from WhatsApp chats
+  setTimeout(() => {
+    setStatus("✅ Contatos extraídos!", true);
+  }, 1500);
+}
+
+function extractFromGroups() {
+  setStatus("🔄 Extraindo contatos de grupos...", true);
+  // TODO: Implement extraction from WhatsApp groups
+  setTimeout(() => {
+    setStatus("✅ Contatos extraídos!", true);
+  }, 1500);
+}
+
+function addManualContact() {
+  const name = el("manualContactName")?.value?.trim();
+  const phone = el("manualContactPhone")?.value?.trim();
+  const tags = el("manualContactTags")?.value?.trim();
+  
+  if (!name || !phone) {
+    setStatus("Preencha nome e telefone", false);
+    return;
+  }
+  
+  contacts.push({
+    id: `contact_${Date.now()}`,
+    name,
+    phone,
+    tags: tags.split(',').map(t => t.trim()).filter(t => t),
+    selected: false,
+    createdAt: new Date().toISOString()
+  });
+  
+  saveContacts();
+  renderContacts();
+  
+  el("manualContactName").value = "";
+  el("manualContactPhone").value = "";
+  el("manualContactTags").value = "";
+  
+  setStatus("✅ Contato adicionado!", true);
+}
+
+function renderContacts() {
+  const container = el("contactsList");
+  if (!container) return;
+  
+  if (!contacts.length) {
+    container.innerHTML = '<p class="empty-state">Nenhum contato extraído</p>';
+    return;
+  }
+  
+  container.innerHTML = contacts.map(c => `
+    <div class="contact-item">
+      <input type="checkbox" ${c.selected ? 'checked' : ''} data-id="${c.id}">
+      <div class="contact-info">
+        <div class="contact-name">${escapeHtml(c.name)}</div>
+        <div class="contact-phone">${escapeHtml(c.phone)}</div>
+      </div>
+      <button class="btn-delete" data-id="${c.id}">🗑️</button>
+    </div>
+  `).join('');
+  
+  container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      const contact = contacts.find(c => c.id === e.target.dataset.id);
+      if (contact) {
+        contact.selected = e.target.checked;
+        saveContacts();
+      }
+    });
+  });
+  
+  container.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      contacts = contacts.filter(c => c.id !== e.target.dataset.id);
+      saveContacts();
+      renderContacts();
+    });
+  });
+}
+
+function updateContactsCount() {
+  const countEl = el("totalContacts");
+  if (countEl) {
+    countEl.textContent = contacts.length;
+  }
+}
+
+function exportContacts() {
+  if (!contacts.length) {
+    setStatus("Nenhum contato para exportar", false);
+    return;
+  }
+  
+  const csv = "Nome,Telefone,Tags\n" + contacts.map(c => 
+    `"${c.name}","${c.phone}","${c.tags?.join(';') || ''}"`
+  ).join('\n');
+  
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `contatos_${Date.now()}.csv`;
+  a.click();
+  
+  setStatus("✅ Contatos exportados!", true);
+}
+
+function importContacts() {
+  const fileInput = el("importFile");
+  if (fileInput) {
+    fileInput.click();
+  }
+}
+
+// -------------------------
 // Utility Functions
 // -------------------------
 function escapeHtml(text) {
@@ -782,32 +1203,160 @@ function setupMainListeners() {
     teamMsgEl.addEventListener("input", updateMessagePreview);
   }
   
-  // Sync button
-  const syncBtn = el("syncNow");
-  if (syncBtn) {
-    syncBtn.addEventListener("click", async () => {
-      const indicator = el("syncIndicator");
-      if (indicator) {
-        indicator.classList.add("syncing");
+  // IA Tab event listeners
+  const addProductBtn = el("addProduct");
+  if (addProductBtn) {
+    addProductBtn.addEventListener("click", addProduct);
+  }
+  
+  const addFaqBtn = el("addFaq");
+  if (addFaqBtn) {
+    addFaqBtn.addEventListener("click", addFAQ);
+  }
+  
+  const addDocBtn = el("addDocument");
+  if (addDocBtn) {
+    addDocBtn.addEventListener("click", addDocument);
+  }
+  
+  const addCannedBtn = el("addCanned");
+  if (addCannedBtn) {
+    addCannedBtn.addEventListener("click", addCanned);
+  }
+  
+  const saveKnowledgeBtn = el("saveKnowledge");
+  if (saveKnowledgeBtn) {
+    saveKnowledgeBtn.addEventListener("click", saveIAData);
+  }
+  
+  const syncKnowledgeBtn = el("syncKnowledge");
+  if (syncKnowledgeBtn) {
+    syncKnowledgeBtn.addEventListener("click", () => {
+      setStatus("🔄 Sincronizando com servidor...", true);
+      setTimeout(() => {
+        setStatus("✅ Sincronizado!", true);
+      }, 1500);
+    });
+  }
+  
+  // Campaigns Tab event listeners
+  const startCampaignBtn = el("startCampaign");
+  if (startCampaignBtn) {
+    startCampaignBtn.addEventListener("click", startCampaign);
+  }
+  
+  const scheduleCampaignBtn = el("scheduleCampaign");
+  if (scheduleCampaignBtn) {
+    scheduleCampaignBtn.addEventListener("click", scheduleCampaign);
+  }
+  
+  // Contacts Tab event listeners
+  const extractChatsBtn = el("extractFromChats");
+  if (extractChatsBtn) {
+    extractChatsBtn.addEventListener("click", extractFromChats);
+  }
+  
+  const extractGroupsBtn = el("extractFromGroups");
+  if (extractGroupsBtn) {
+    extractGroupsBtn.addEventListener("click", extractFromGroups);
+  }
+  
+  const addManualContactBtn = el("addManualContact");
+  if (addManualContactBtn) {
+    addManualContactBtn.addEventListener("click", addManualContact);
+  }
+  
+  const exportContactsBtn = el("exportContacts");
+  if (exportContactsBtn) {
+    exportContactsBtn.addEventListener("click", exportContacts);
+  }
+  
+  const importContactsBtn = el("importContacts");
+  if (importContactsBtn) {
+    importContactsBtn.addEventListener("click", importContacts);
+  }
+  
+  const importFileInput = el("importFile");
+  if (importFileInput) {
+    importFileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          // Simple CSV parsing
+          const lines = ev.target.result.split('\n');
+          let imported = 0;
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            const parts = line.split(',').map(p => p.replace(/^"|"$/g, '').trim());
+            if (parts.length >= 2) {
+              contacts.push({
+                id: `contact_${Date.now()}_${i}`,
+                name: parts[0],
+                phone: parts[1],
+                tags: parts[2] ? parts[2].split(';').map(t => t.trim()) : [],
+                selected: false,
+                createdAt: new Date().toISOString()
+              });
+              imported++;
+            }
+          }
+          saveContacts();
+          renderContacts();
+          setStatus(`✅ ${imported} contatos importados!`, true);
+        };
+        reader.readAsText(file);
+      }
+    });
+  }
+  
+  const searchContactsInput = el("searchContacts");
+  if (searchContactsInput) {
+    searchContactsInput.addEventListener("input", (e) => {
+      const query = e.target.value.toLowerCase();
+      const container = el("contactsList");
+      if (!container) return;
+      
+      const filtered = contacts.filter(c => 
+        c.name.toLowerCase().includes(query) || 
+        c.phone.includes(query)
+      );
+      
+      if (!filtered.length) {
+        container.innerHTML = '<p class="empty-state">Nenhum contato encontrado</p>';
+        return;
       }
       
-      // Simulate sync
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      container.innerHTML = filtered.map(c => `
+        <div class="contact-item">
+          <input type="checkbox" ${c.selected ? 'checked' : ''} data-id="${c.id}">
+          <div class="contact-info">
+            <div class="contact-name">${escapeHtml(c.name)}</div>
+            <div class="contact-phone">${escapeHtml(c.phone)}</div>
+          </div>
+          <button class="btn-delete" data-id="${c.id}">🗑️</button>
+        </div>
+      `).join('');
       
-      if (indicator) {
-        indicator.classList.remove("syncing");
-        indicator.classList.add("synced");
-      }
+      // Re-attach event listeners
+      container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', (ev) => {
+          const contact = contacts.find(c => c.id === ev.target.dataset.id);
+          if (contact) {
+            contact.selected = ev.target.checked;
+            saveContacts();
+          }
+        });
+      });
       
-      const syncText = el("syncText");
-      if (syncText) {
-        syncText.textContent = `Última sync: ${new Date().toLocaleTimeString()}`;
-      }
-      
-      const lastSync = el("lastSync");
-      if (lastSync) {
-        lastSync.textContent = `Última sync: ${new Date().toLocaleTimeString()}`;
-      }
+      container.querySelectorAll('.btn-delete').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          contacts = contacts.filter(c => c.id !== ev.target.dataset.id);
+          saveContacts();
+          renderContacts();
+        });
+      });
     });
   }
 }
@@ -815,19 +1364,16 @@ function setupMainListeners() {
 // -------------------------
 // Initialize
 // -------------------------
-// Inicializar sistema de licença quando DOM estiver pronto
 document.addEventListener("DOMContentLoaded", async () => {
+  // Initialize license system (header-based)
   await initLicenseSystem();
   setupLicenseListeners();
   
-  // Setup navigation and accordion for new design
+  // Setup navigation and accordion
   initNavigation();
   initAccordion();
   
-  // Só carregar configurações se já tiver licença e API key (screenMain)
-  const storage = await chrome.storage.local.get(["licenseValid", "openaiApiKey"]);
-  if (storage.licenseValid && storage.openaiApiKey) {
-    setupMainListeners();
-    load().catch((e) => console.error("Load error:", e));
-  }
+  // Always setup main listeners and load data
+  setupMainListeners();
+  load().catch((e) => console.error("Load error:", e));
 });

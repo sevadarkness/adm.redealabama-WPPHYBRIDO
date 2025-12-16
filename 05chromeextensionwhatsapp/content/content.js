@@ -4370,15 +4370,28 @@ ${transcript || '(não consegui ler mensagens)'}
         top: 0;
         left: 0;
         right: 0;
-        height: 50px;
+        height: 60px;
         background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-dark2) 100%);
         border-bottom: 1px solid var(--border-subtle);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0 16px;
+        padding: 0 20px;
         z-index: var(--z-topbar);
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+      }
+      
+      /* Left and Right sections */
+      .wh-left {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex: 1;
+      }
+      
+      .wh-right {
+        display: flex;
+        align-items: center;
       }
       
       /* Brand */
@@ -4389,7 +4402,7 @@ ${transcript || '(não consegui ler mensagens)'}
       }
       
       .wh-logo {
-        font-size: 24px;
+        font-size: 28px;
         line-height: 1;
       }
       
@@ -4400,13 +4413,13 @@ ${transcript || '(não consegui ler mensagens)'}
       }
       
       .wh-brand-name {
-        font-size: 14px;
+        font-size: 16px;
         font-weight: 600;
         color: var(--text-primary);
       }
       
       .wh-brand-subtitle {
-        font-size: 10px;
+        font-size: 11px;
         color: var(--text-muted);
       }
       
@@ -4422,7 +4435,7 @@ ${transcript || '(não consegui ler mensagens)'}
         align-items: center;
         gap: 6px;
         background: rgba(0, 0, 0, 0.2);
-        padding: 6px 10px;
+        padding: 4px 10px;
         border-radius: 6px;
         border: 1px solid rgba(255, 255, 255, 0.1);
       }
@@ -4435,8 +4448,10 @@ ${transcript || '(não consegui ler mensagens)'}
         background: transparent;
         border: none;
         color: var(--text-primary);
-        font-size: 12px;
+        font-size: 13px;
         width: 120px;
+        min-width: 120px;
+        padding: 8px 0;
         outline: none;
       }
       
@@ -4460,12 +4475,14 @@ ${transcript || '(não consegui ler mensagens)'}
         background: transparent;
         border: none;
         color: var(--text-muted);
-        padding: 8px 12px;
+        padding: 10px 14px;
+        min-width: 44px;
+        min-height: 44px;
         border-radius: 6px;
         cursor: pointer;
         transition: all 0.2s;
         position: relative;
-        font-size: 18px;
+        font-size: 22px;
         line-height: 1;
       }
       
@@ -4678,39 +4695,42 @@ ${transcript || '(não consegui ler mensagens)'}
     // Create top bar HTML
     const topBarHTML = `
       <div class="wh-topbar">
-        <!-- Brand -->
-        <div class="wh-brand">
-          <span class="wh-logo">🤖</span>
-          <div class="wh-brand-text">
-            <span class="wh-brand-name">WhatsHybrid Lite</span>
-            <span class="wh-brand-subtitle">CRM Quantum • Atendimento Inteligente</span>
+        <!-- ESQUERDA: Logo + Navegação -->
+        <div class="wh-left">
+          <div class="wh-brand">
+            <span class="wh-logo">🤖</span>
+            <div class="wh-brand-text">
+              <span class="wh-brand-name">WhatsHybrid Lite</span>
+              <span class="wh-brand-subtitle">CRM Quantum • Atendimento Inteligente</span>
+            </div>
           </div>
+          
+          <nav class="wh-nav">
+            <button class="wh-nav-btn" data-tab="config" title="Configurações">⚙️</button>
+            <button class="wh-nav-btn" data-tab="quick" title="Respostas Rápidas">⚡</button>
+            <button class="wh-nav-btn" data-tab="team" title="Equipe">👥</button>
+            <button class="wh-nav-btn" data-tab="copilot" title="Copilot">📊</button>
+            <button class="wh-nav-btn" data-tab="training" title="Treinamento IA">🧠</button>
+            <button class="wh-nav-btn" data-tab="campaigns" title="Campanhas">📢</button>
+            <button class="wh-nav-btn" data-tab="contacts" title="Contatos">📇</button>
+          </nav>
         </div>
         
-        <!-- Auth Fields -->
-        <div class="wh-auth">
-          <div class="wh-auth-field">
-            <span>🔐</span>
-            <input type="password" id="whLicense" placeholder="Licença..." maxlength="20">
-            <span class="wh-auth-status" id="whLicenseStatus"></span>
-          </div>
-          <div class="wh-auth-field" id="whApiField" style="display: none;">
-            <span>🔑</span>
-            <input type="text" id="whApiKey" placeholder="API Key...">
-            <span class="wh-auth-status" id="whApiKeyStatus"></span>
+        <!-- DIREITA: Autenticação -->
+        <div class="wh-right">
+          <div class="wh-auth">
+            <div class="wh-auth-field">
+              <span>🔐</span>
+              <input type="password" id="whLicense" placeholder="Licença..." maxlength="20">
+              <span class="wh-auth-status" id="whLicenseStatus"></span>
+            </div>
+            <div class="wh-auth-field" id="whApiField" style="display: none;">
+              <span>🔑</span>
+              <input type="text" id="whApiKey" placeholder="API Key...">
+              <span class="wh-auth-status" id="whApiKeyStatus"></span>
+            </div>
           </div>
         </div>
-        
-        <!-- Navigation -->
-        <nav class="wh-nav">
-          <button class="wh-nav-btn" data-tab="config" title="Configurações">⚙️</button>
-          <button class="wh-nav-btn" data-tab="quick" title="Respostas Rápidas">⚡</button>
-          <button class="wh-nav-btn" data-tab="team" title="Equipe">👥</button>
-          <button class="wh-nav-btn" data-tab="copilot" title="Copilot">📊</button>
-          <button class="wh-nav-btn" data-tab="training" title="Treinamento IA">🧠</button>
-          <button class="wh-nav-btn" data-tab="campaigns" title="Campanhas">📢</button>
-          <button class="wh-nav-btn" data-tab="contacts" title="Contatos">📇</button>
-        </nav>
       </div>
     `;
     
@@ -4745,16 +4765,18 @@ ${transcript || '(não consegui ler mensagens)'}
   }
   
   function compressWhatsAppWeb() {
-    // Add margin-top to WhatsApp Web to make space for the top bar
-    const whatsappBody = document.body;
-    if (whatsappBody) {
-      whatsappBody.style.marginTop = '50px';
+    // Comprimir o WhatsApp Web para dar espaço à barra superior (NÃO sobrepor)
+    const app = document.querySelector('#app');
+    if (app) {
+      app.style.marginTop = '60px';
+      app.style.height = 'calc(100vh - 60px)';
     }
     
-    const whatsappApp = document.querySelector('#app');
-    if (whatsappApp) {
-      whatsappApp.style.marginTop = '50px';
-    }
+    // Também no body como fallback
+    document.body.style.marginTop = '60px';
+    document.body.style.paddingTop = '0';
+    document.body.style.height = 'calc(100vh - 60px)';
+    document.body.style.overflow = 'hidden';
   }
   
   function initTopBar(shadow) {
@@ -4845,7 +4867,7 @@ ${transcript || '(não consegui ler mensagens)'}
       
       // Position dropdown below button
       const btnRect = btn.getBoundingClientRect();
-      dropdown.style.top = '52px';
+      dropdown.style.top = '62px';
       
       // Load content for the tab
       loadDropdownContent(dropdown, tab, shadow);

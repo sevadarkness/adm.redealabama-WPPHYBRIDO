@@ -20,6 +20,15 @@
     version: '0.2.0'
   };
 
+  // Constantes de configuração
+  const CONFIG = {
+    CAMPAIGN_HISTORY_LIMIT: 20,          // Máximo de campanhas no histórico
+    AI_CACHE_TRANSCRIPT_LENGTH: 500,     // Tamanho do transcript para cache key
+    SETTINGS_CACHE_TTL: 5000,            // TTL cache de settings (5s)
+    AI_CACHE_TTL: 30000,                 // TTL cache de respostas IA (30s)
+    CACHE_CLEANUP_INTERVAL: 120000       // Intervalo de cleanup do cache (2min)
+  };
+
   // -------------------------
   // Utils
   // -------------------------
@@ -36,7 +45,7 @@
   // Sistema de Cache Inteligente
   // -------------------------
   class SmartCache {
-    constructor(defaultTTL = 60000) { // 1 minuto padrão
+    constructor(defaultTTL = 60000) { // Base TTL: 60s (pode ser customizado por entrada)
       this.cache = new Map();
       this.defaultTTL = defaultTTL;
     }
@@ -84,8 +93,8 @@
   // Instância global de cache
   const whlCache = new SmartCache();
 
-  // Cleanup automático a cada 2 minutos
-  setInterval(() => whlCache.cleanup(), 120000);
+  // Cleanup automático periódico
+  setInterval(() => whlCache.cleanup(), CONFIG.CACHE_CLEANUP_INTERVAL);
 
   // Hash simples para cache keys
   function hashString(str) {
@@ -129,13 +138,13 @@
   }
 
   async function getSettingsCached() {
-    // Use SmartCache system with 5 second TTL
+    // Use SmartCache system
     const cached = whlCache.get('settings');
     if (cached) return cached;
     
     const resp = await bg('GET_SETTINGS', {});
     const settings = resp?.settings || {};
-    whlCache.set('settings', settings, 5000);
+    whlCache.set('settings', settings, CONFIG.SETTINGS_CACHE_TTL);
     return settings;
   }
 
@@ -343,7 +352,16 @@
     // Pausas aleatórias longas (simular distração)
     randomLongPauseChance: 0.05, // 5% de chance
     randomLongPauseMin: 30000, // 30s
-    randomLongPauseMax: 120000 // 2min
+    randomLongPauseMax: 120000, // 2min
+    
+    // Pausa ocasional durante digitação (como se pensando)
+    thinkingWhileTypingChance: 0.02, // 2% chance por caractere
+    thinkingWhileTypingMin: 300,
+    thinkingWhileTypingMax: 800,
+    
+    // Limpar campo antes de digitar
+    clearFieldDelayMin: 50,
+    clearFieldDelayMax: 150
   };
 
   // Helper para número aleatório
@@ -357,7 +375,10 @@
     
     // Limpar conteúdo existente
     document.execCommand('selectAll', false, null);
-    await sleep(randomBetween(50, 150));
+    await sleep(randomBetween(
+      STEALTH_CONFIG.clearFieldDelayMin,
+      STEALTH_CONFIG.clearFieldDelayMax
+    ));
     
     // Digitar caractere por caractere
     for (let i = 0; i < text.length; i++) {
@@ -374,8 +395,11 @@
       document.execCommand('insertText', false, char);
       
       // Ocasionalmente fazer uma pausa maior (como se pensando)
-      if (Math.random() < 0.02) { // 2% chance
-        await sleep(randomBetween(300, 800));
+      if (Math.random() < STEALTH_CONFIG.thinkingWhileTypingChance) {
+        await sleep(randomBetween(
+          STEALTH_CONFIG.thinkingWhileTypingMin,
+          STEALTH_CONFIG.thinkingWhileTypingMax
+        ));
       }
     }
     
@@ -808,7 +832,7 @@
     await chrome.storage.local.remove(['whl_campaign_active']);
   }
 
-  // Histórico de campanhas (últimas 20)
+  // Histórico de campanhas
   async function saveCampaignToHistory(campaign) {
     return new Promise((resolve) => {
       chrome.storage.local.get(['whl_campaign_history'], (result) => {
@@ -820,9 +844,9 @@
           stats: campaign.progress,
           message: campaign.config.message.slice(0, 50) + '...'
         });
-        // Manter apenas últimas 20
+        // Manter apenas últimas N campanhas
         chrome.storage.local.set({ 
-          'whl_campaign_history': history.slice(0, 20) 
+          'whl_campaign_history': history.slice(0, CONFIG.CAMPAIGN_HISTORY_LIMIT) 
         }, () => resolve(true));
       });
     });
@@ -940,9 +964,9 @@ Regras:
   }
 
   async function aiChat({ mode, extraInstruction, transcript, memory, chatTitle, examplesOverride, contextOverride }) {
-    // Cache para respostas da IA (30 segundos) - exceto modo train
+    // Cache para respostas da IA - exceto modo train
     if (mode !== 'train') {
-      const cacheKey = `ai_${mode}_${hashString(transcript.slice(-500))}`;
+      const cacheKey = `ai_${mode}_${hashString(transcript.slice(-CONFIG.AI_CACHE_TRANSCRIPT_LENGTH))}`;
       const cached = whlCache.get(cacheKey);
       if (cached) {
         log('Cache hit para resposta IA');
@@ -1006,8 +1030,8 @@ Regras:
     
     // Armazenar em cache se não for modo train
     if (mode !== 'train') {
-      const cacheKey = `ai_${mode}_${hashString(transcript.slice(-500))}`;
-      whlCache.set(cacheKey, result, 30000);
+      const cacheKey = `ai_${mode}_${hashString(transcript.slice(-CONFIG.AI_CACHE_TRANSCRIPT_LENGTH))}`;
+      whlCache.set(cacheKey, result, CONFIG.AI_CACHE_TTL);
     }
     
     return result;
@@ -1786,6 +1810,17 @@ ${transcript || '(não consegui ler mensagens)'}
     // Verificar se existe campanha pausada ao carregar
     async function checkPausedCampaign() {
       try {
+        const DOM_MODE_ENABLED = false; // Feature flag
+        if (!DOM_MODE_ENABLED) {
+          // Se DOM mode está desabilitado, não mostrar UI de resumo
+          // mas limpar estados antigos se existirem
+          const state = await loadCampaignState();
+          if (state) {
+            log('Campanha pausada encontrada, mas DOM mode está desabilitado. Estado preservado.');
+          }
+          return;
+        }
+        
         const state = await loadCampaignState();
         if (state && (state.status === 'paused' || state.status === 'running')) {
           campResumeBox.style.display = 'block';
@@ -1802,10 +1837,17 @@ ${transcript || '(não consegui ler mensagens)'}
         const state = await loadCampaignState();
         if (!state) throw new Error('Nenhuma campanha para retomar');
         
-        campResumeStatus.textContent = 'Modo DOM desativado. Não é possível retomar campanhas DOM.';
-        campResumeStatus.classList.add('err');
+        // Feature flag: DOM mode está desativado nesta build
+        const DOM_MODE_ENABLED = false;
         
-        /* QUANDO DOM MODE ESTIVER HABILITADO:
+        if (!DOM_MODE_ENABLED) {
+          campResumeStatus.textContent = 'Funcionalidade indisponível: Modo DOM desativado nesta versão. Use Campanhas via API (backend) ou Links (assistido).';
+          campResumeStatus.classList.remove('ok');
+          campResumeStatus.classList.add('err');
+          return;
+        }
+        
+        /* QUANDO DOM MODE ESTIVER HABILITADO (DOM_MODE_ENABLED = true):
         // Restaurar configuração da UI
         campMsg.value = state.config.message;
         campDelayMin.value = state.config.delayMin;

@@ -13,20 +13,105 @@
         <div class="logo">WH</div>
         <div class="titles">
           <h1>WhatsHybrid Lite</h1>
-          <p class="muted">Configurações • IA • Equipe</p>
+          <p class="muted">Sistema de Atendimento Inteligente</p>
         </div>
       </div>
+      <!-- Botão de reconfiguração (só aparece quando licenciado) -->
+      <button id="btnReconfig" class="btn-icon hidden" title="Reconfigurar API Key">
+        🔐
+      </button>
     </header>
 
-    <!-- Navegação por abas -->
-    <div class="popup-tabs">
-      <button class="popup-tab active" data-tab="config">⚙️ Config</button>
-      <button class="popup-tab" data-tab="quick-replies">⚡ Rápidas</button>
-      <button class="popup-tab" data-tab="team">👥 Equipe</button>
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- TELA 1: INSERIR CHAVE DE LICENÇA -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="screenLicense" class="screen active">
+      <div class="license-box">
+        <div class="license-icon">🔐</div>
+        <h2>Chave de Licença</h2>
+        <p class="hint">Digite sua chave de licença para ativar o sistema</p>
+        
+        <div class="input-group">
+          <input 
+            type="password" 
+            id="licenseKey" 
+            placeholder="Digite a chave de licença..."
+            autocomplete="off"
+          />
+          <button id="toggleLicenseKey" class="btn-icon" title="Mostrar/ocultar">
+            👁️
+          </button>
+        </div>
+        
+        <button id="btnValidateLicense" class="btn-primary btn-large">
+          ✅ Validar Licença
+        </button>
+        
+        <p id="licenseError" class="error-msg hidden">
+          ❌ Chave de licença inválida
+        </p>
+      </div>
+      
+      <footer class="license-footer">
+        <p>© 2024 Rede Alabama - Sistema Proprietário</p>
+        <p class="small">Protegido por Lei 9.609/98</p>
+      </footer>
     </div>
 
-    <!-- Tab: Configuração -->
-    <div class="popup-tab-content active" id="tab-config">
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- TELA 2: CONFIGURAR API KEY OPENAI -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="screenApiKey" class="screen">
+      <div class="api-key-box">
+        <div class="success-badge">✅ Licença Válida!</div>
+        
+        <div class="api-key-icon">🤖</div>
+        <h2>Chave API OpenAI</h2>
+        <p class="hint">Configure sua chave da API OpenAI para ativar a IA</p>
+        
+        <div class="input-group">
+          <input 
+            type="password" 
+            id="openaiApiKey" 
+            placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxx"
+            autocomplete="off"
+          />
+          <button id="toggleApiKey" class="btn-icon" title="Mostrar/ocultar">
+            👁️
+          </button>
+        </div>
+        
+        <p class="hint small">
+          Obtenha sua chave em: 
+          <a href="https://platform.openai.com/api-keys" target="_blank">
+            platform.openai.com/api-keys
+          </a>
+        </p>
+        
+        <button id="btnSaveApiKey" class="btn-primary btn-large">
+          💾 Salvar API Key
+        </button>
+        
+        <p id="apiKeyError" class="error-msg hidden">
+          ❌ API Key inválida. Deve começar com "sk-"
+        </p>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- TELA 3: POPUP PRINCIPAL (NORMAL) -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="screenMain" class="screen">
+
+      <!-- Navegação por abas -->
+      <div class="popup-tabs">
+        <button class="popup-tab active" data-tab="config">⚙️ Config</button>
+        <button class="popup-tab" data-tab="quick-replies">⚡ Rápidas</button>
+        <button class="popup-tab" data-tab="team">👥 Equipe</button>
+      </div>
+
+      <!-- Tab: Configuração -->
+      <div class="popup-tab-content active" id="tab-config">
       
       <!-- Card Chatbot (MANTIDO) -->
       <div class="card">
@@ -137,10 +222,10 @@
         </div>
       </div>
 
-    </div>
+      </div>
 
-    <!-- Tab: Mensagens Rápidas (NOVA) -->
-    <div class="popup-tab-content" id="tab-quick-replies">
+      <!-- Tab: Mensagens Rápidas (NOVA) -->
+      <div class="popup-tab-content" id="tab-quick-replies">
       <div class="card">
         <div class="cardTitle">⚡ Mensagens Rápidas</div>
         <p class="hint">Crie respostas prontas para usar com um clique no chat.</p>
@@ -161,10 +246,10 @@
           <!-- Lista dinâmica de mensagens rápidas -->
         </div>
       </div>
-    </div>
+      </div>
 
-    <!-- Tab: Equipe (NOVA) -->
-    <div class="popup-tab-content" id="tab-team">
+      <!-- Tab: Equipe (NOVA) -->
+      <div class="popup-tab-content" id="tab-team">
       <div class="card">
         <div class="cardTitle">👥 Equipe</div>
         
@@ -213,18 +298,44 @@
           </p>
         </div>
       </div>
+      </div>
+
+      <!-- Botão Salvar (sempre visível) -->
+      <div class="actions">
+        <button id="save" type="button" class="primary">💾 Salvar Configurações</button>
+      </div>
+
+      <div id="status" class="status"></div>
+
+      <footer class="foot">
+        Use com consentimento. Automação agressiva pode causar bloqueios.
+      </footer>
     </div>
 
-    <!-- Botão Salvar (sempre visível) -->
-    <div class="actions">
-      <button id="save" type="button" class="primary">💾 Salvar Configurações</button>
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- MODAL: RECONFIGURAR API KEY -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="modalReconfig" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <h3>🔐 Reconfigurar API Key</h3>
+        <p class="hint">Digite a chave de licença para acessar</p>
+        
+        <div class="input-group">
+          <input 
+            type="password" 
+            id="reconfigLicenseKey" 
+            placeholder="Chave de licença..."
+          />
+        </div>
+        
+        <div class="modal-actions">
+          <button id="btnCancelReconfig" class="btn-secondary">Cancelar</button>
+          <button id="btnConfirmReconfig" class="btn-primary">OK</button>
+        </div>
+      </div>
     </div>
 
-    <div id="status" class="status"></div>
-
-    <footer class="foot">
-      Use com consentimento. Automação agressiva pode causar bloqueios.
-    </footer>
   </div>
 
   <script src="popup.js"></script>

@@ -9,9 +9,9 @@
 // NOTE: This service worker is intentionally small and defensive.
 
 const DEFAULTS = {
-  // Conexão - PRÉ-CONFIGURADO (não aparece no popup)
+  // Conexão - Configurado via popup (licença + API key)
   provider: "openai",
-  openaiApiKey: "sk-proj-XXXXXXXXXXXXXXXXXXXXXXXX", // Chave fixa
+  openaiApiKey: "", // Configurado pelo usuário via popup
   openaiModel: "gpt-4o-mini",
 
   // Backend - PRÉ-CONFIGURADO (não aparece no popup)

@@ -1,3 +1,76 @@
+// ═══════════════════════════════════════════════════════════════════
+// SISTEMA DE LICENÇA E AUTENTICAÇÃO
+// ═══════════════════════════════════════════════════════════════════
+
+// Chave de licença (ofuscada em Base64)
+const LICENSE_KEY_ENCODED = "Q3Jpc3RpQG5vMTIz"; // Base64 de "Cristi@no123"
+
+// Elementos das telas
+const screenLicense = document.getElementById("screenLicense");
+const screenApiKey = document.getElementById("screenApiKey");
+const screenMain = document.getElementById("screenMain");
+
+// ═══════════════════════════════════════════════════════════════════
+// FUNÇÕES DE VALIDAÇÃO
+// ═══════════════════════════════════════════════════════════════════
+
+function validateLicense(inputKey) {
+  try {
+    const correctKey = atob(LICENSE_KEY_ENCODED);
+    return inputKey === correctKey;
+  } catch (e) {
+    return false;
+  }
+}
+
+function validateApiKey(apiKey) {
+  return apiKey && apiKey.startsWith("sk-") && apiKey.length > 20;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FUNÇÕES DE NAVEGAÇÃO ENTRE TELAS
+// ═══════════════════════════════════════════════════════════════════
+
+function showScreen(screenId) {
+  // Esconder todas as telas
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  
+  // Mostrar tela específica
+  const screen = document.getElementById(screenId);
+  if (screen) {
+    screen.classList.add("active");
+  }
+  
+  // Mostrar/esconder botão de reconfig
+  const btnReconfig = document.getElementById("btnReconfig");
+  if (btnReconfig) {
+    if (screenId === "screenMain") {
+      btnReconfig.classList.remove("hidden");
+    } else {
+      btnReconfig.classList.add("hidden");
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// INICIALIZAÇÃO - VERIFICAR ESTADO
+// ═══════════════════════════════════════════════════════════════════
+
+async function initLicenseSystem() {
+  const storage = await chrome.storage.local.get(["licenseValid", "openaiApiKey"]);
+  
+  if (!storage.licenseValid) {
+    // Estado 1: Sem licença
+    showScreen("screenLicense");
+  } else if (!storage.openaiApiKey) {
+    // Estado 2: Licença OK, sem API Key
+    showScreen("screenApiKey");
+  } else {
+    // Estado 3: Tudo configurado
+    showScreen("screenMain");
+  }
+}
+
 const el = (id) => document.getElementById(id);
 
 // Global state
@@ -424,4 +497,120 @@ function escapeHtml(text) {
 // -------------------------
 // Initialize
 // -------------------------
-load().catch((e) => setStatus(String(e?.message || e), false));
+document.addEventListener("DOMContentLoaded", async () => {
+  await initLicenseSystem();
+  
+  // Only load settings if we're on the main screen
+  const storage = await chrome.storage.local.get(["licenseValid", "openaiApiKey"]);
+  if (storage.licenseValid && storage.openaiApiKey) {
+    load().catch((e) => setStatus(String(e?.message || e), false));
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// EVENT LISTENERS - LICENÇA E API KEY
+// ═══════════════════════════════════════════════════════════════════
+
+// Validar Licença
+document.getElementById("btnValidateLicense")?.addEventListener("click", async () => {
+  const licenseInput = document.getElementById("licenseKey").value.trim();
+  const errorEl = document.getElementById("licenseError");
+  
+  if (validateLicense(licenseInput)) {
+    // Licença válida
+    await chrome.storage.local.set({ licenseValid: true });
+    errorEl.classList.add("hidden");
+    showScreen("screenApiKey");
+  } else {
+    // Licença inválida
+    errorEl.classList.remove("hidden");
+    document.getElementById("licenseKey").classList.add("shake");
+    setTimeout(() => {
+      document.getElementById("licenseKey").classList.remove("shake");
+    }, 500);
+  }
+});
+
+// Salvar API Key
+document.getElementById("btnSaveApiKey")?.addEventListener("click", async () => {
+  const apiKey = document.getElementById("openaiApiKey").value.trim();
+  const errorEl = document.getElementById("apiKeyError");
+  
+  if (validateApiKey(apiKey)) {
+    // API Key válida
+    await chrome.storage.local.set({ openaiApiKey: apiKey });
+    errorEl.classList.add("hidden");
+    showScreen("screenMain");
+    setStatus("✅ API Key salva com sucesso!", true);
+    
+    // Carregar configurações
+    load().catch((e) => setStatus(String(e?.message || e), false));
+  } else {
+    // API Key inválida
+    errorEl.classList.remove("hidden");
+  }
+});
+
+// Toggle mostrar/ocultar senha
+document.getElementById("toggleLicenseKey")?.addEventListener("click", () => {
+  const input = document.getElementById("licenseKey");
+  input.type = input.type === "password" ? "text" : "password";
+});
+
+document.getElementById("toggleApiKey")?.addEventListener("click", () => {
+  const input = document.getElementById("openaiApiKey");
+  input.type = input.type === "password" ? "text" : "password";
+});
+
+// Botão Reconfigurar (🔐)
+document.getElementById("btnReconfig")?.addEventListener("click", () => {
+  const modalReconfig = document.getElementById("modalReconfig");
+  modalReconfig.classList.remove("hidden");
+  document.getElementById("reconfigLicenseKey").value = "";
+  document.getElementById("reconfigLicenseKey").focus();
+});
+
+// Cancelar Reconfig
+document.getElementById("btnCancelReconfig")?.addEventListener("click", () => {
+  const modalReconfig = document.getElementById("modalReconfig");
+  modalReconfig.classList.add("hidden");
+});
+
+// Confirmar Reconfig
+document.getElementById("btnConfirmReconfig")?.addEventListener("click", async () => {
+  const licenseInput = document.getElementById("reconfigLicenseKey").value.trim();
+  const modalReconfig = document.getElementById("modalReconfig");
+  
+  if (validateLicense(licenseInput)) {
+    modalReconfig.classList.add("hidden");
+    showScreen("screenApiKey");
+    
+    // Preencher com API Key atual se existir
+    const data = await chrome.storage.local.get(["openaiApiKey"]);
+    if (data.openaiApiKey) {
+      document.getElementById("openaiApiKey").value = data.openaiApiKey;
+    }
+  } else {
+    alert("❌ Chave de licença inválida!");
+  }
+});
+
+// Fechar modal clicando no backdrop
+document.querySelector(".modal-backdrop")?.addEventListener("click", () => {
+  const modalReconfig = document.getElementById("modalReconfig");
+  modalReconfig.classList.add("hidden");
+});
+
+// Enter para validar licença
+document.getElementById("licenseKey")?.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
+    document.getElementById("btnValidateLicense").click();
+  }
+});
+
+// Enter para salvar API Key
+document.getElementById("openaiApiKey")?.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
+    document.getElementById("btnSaveApiKey").click();
+  }
+});

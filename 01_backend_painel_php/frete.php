@@ -5,89 +5,38 @@ include 'menu_navegacao.php';  // Inclusão do menu de navegação
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
-    <link rel="stylesheet" href="alabama-theme.css">
-
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Alabama - Frete</title>
- 
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <title>Frete - Rede Alabama</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="assets/css/alabama-design-system.css">
+  <link rel="stylesheet" href="alabama-theme.css">
+  <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body {
-      font-family: 'Arial', sans-serif;
-      background-color: #f9f9f9;
-      margin-top: 0;
-    }
-
-    h1, h3 {
-      color: #333;
-      text-align: center;
-    }
-
-    input, button {
-      margin-bottom: 10px;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 1rem;
-      width: 100%;
-    }
-
-    button {
-      background-color: #007bff;
-      color: white;
-      cursor: pointer;
-      transition: background-color 0.3s;
-    }
-
-    button:hover {
-      background-color: #0056b3;
-    }
-
-    table {
-      margin-top: 20px;
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      text-align: center;
-      padding: 10px;
-    }
-
-    th {
-      background-color: #007bff;
-      color: white;
-      font-weight: bold;
-    }
-
-    tr:nth-child(even) {
-      background-color: #f2f2f2;
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
     }
 
     #map {
       margin-top: 20px;
       height: 400px;
       width: 100%;
-      border: 2px solid #007bff;
-      border-radius: 5px;
-    }
-
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
+      border: 2px solid var(--al-primary);
+      border-radius: var(--al-radius-md);
     }
 
     #sales-info {
       margin-top: 20px;
-      background: #fff;
       padding: 15px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
+      border-radius: var(--al-radius-md);
     }
 
     #sales-info textarea {
@@ -95,16 +44,8 @@ include 'menu_navegacao.php';  // Inclusão do menu de navegação
       height: 120px;
       margin-top: 10px;
       padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-family: 'Arial', sans-serif;
-      font-size: 1rem;
+      border-radius: var(--al-radius-sm);
       line-height: 1.5;
-    }
-
-    ul {
-      padding-left: 20px;
-      list-style: none;
     }
 
     ul li {
@@ -112,16 +53,12 @@ include 'menu_navegacao.php';  // Inclusão do menu de navegação
       margin: 5px 0;
     }
 
-    body {
-      padding-top: 0;
-    }
-
     .container {
       margin-top: 70px;
     }
   </style>
 </head>
-<body>
+<body class="al-body">
 
   <div class="container">
     <h1>Conectar Cliente ao Vendedor Mais Próximos</h1>

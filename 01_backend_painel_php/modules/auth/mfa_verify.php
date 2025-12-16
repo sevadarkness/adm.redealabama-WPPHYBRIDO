@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/mfa_lib.php';
 require_once __DIR__ . '/../../session_bootstrap.php';
+require_once __DIR__ . '/../../csrf.php';
 
 $redirect = $_GET['redirect'] ?? 'painel_admin.php';
 $redirect = (string)$redirect;
@@ -23,13 +24,18 @@ if ($redirect === '') {
 $erro = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $code = $_POST['code'] ?? '';
-    if (alabama_mfa_verify_code($code)) {
-        $_SESSION['mfa_ok'] = true;
-        header('Location: ' . $redirect);
-        exit;
+    // Validate CSRF token
+    if (!csrf_validate()) {
+        $erro = 'Sessão expirada. Recarregue a página.';
     } else {
-        $erro = 'Código inválido.';
+        $code = $_POST['code'] ?? '';
+        if (alabama_mfa_verify_code($code)) {
+            $_SESSION['mfa_ok'] = true;
+            header('Location: ' . $redirect);
+            exit;
+        } else {
+            $erro = 'Código inválido.';
+        }
     }
 }
 
@@ -55,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </p>
 
     <form method="post" class="card card-body">
+        <?= csrf_field(); ?>
         <div class="mb-3">
             <label class="form-label">Código MFA</label>
             <input type="text" name="code" class="form-control" maxlength="6" autocomplete="one-time-code" required>

@@ -173,10 +173,10 @@ function whatsapp_find_or_create_conversa(PDO $pdo, string $telefone): int
     return (int)$pdo->lastInsertId();
 }
 
-function whatsapp_insert_message(PDO $pdo, int $conversaId, string $direction, string $author, string $conteudo, array $raw = [], ?string $llmModel = null, ?int $tokensTotal = null): int
+function whatsapp_insert_message(PDO $pdo, int $conversaId, string $direction, string $author, string $conteudo, array $raw = [], ?string $llmModel = null, ?int $tokensTotal = null, ?string $metaMessageId = null): int
 {
-    $sql = "INSERT INTO whatsapp_mensagens (conversa_id, direction, author, conteudo, raw_payload, llm_model, llm_tokens_total)
-            VALUES (:conversa_id, :direction, :author, :conteudo, :raw_payload, :llm_model, :llm_tokens_total)";
+    $sql = "INSERT INTO whatsapp_mensagens (conversa_id, direction, author, conteudo, raw_payload, llm_model, llm_tokens_total, meta_message_id)
+            VALUES (:conversa_id, :direction, :author, :conteudo, :raw_payload, :llm_model, :llm_tokens_total, :meta_message_id)";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
         ':conversa_id'      => $conversaId,
@@ -186,6 +186,7 @@ function whatsapp_insert_message(PDO $pdo, int $conversaId, string $direction, s
         ':raw_payload'      => $raw ? json_encode($raw, JSON_UNESCAPED_UNICODE) : null,
         ':llm_model'        => $llmModel,
         ':llm_tokens_total' => $tokensTotal,
+        ':meta_message_id'  => $metaMessageId,
     ]);
     return (int)$pdo->lastInsertId();
 }
@@ -231,6 +232,34 @@ function whatsapp_build_history_for_llm(PDO $pdo, int $conversaId, int $limit = 
     return $truncated ?: $history;
 }
 
+
+/**
+ * Verifica se uma mensagem já foi processada (idempotência).
+ * Previne processamento duplicado de mensagens do WhatsApp.
+ * 
+ * @param PDO $pdo
+ * @param string $messageId ID da mensagem do WhatsApp
+ * @return bool true se já foi processada
+ */
+function whatsapp_message_already_processed(PDO $pdo, string $messageId): bool
+{
+    if ($messageId === '') {
+        return false;
+    }
+    
+    try {
+        $sql = "SELECT 1 FROM whatsapp_mensagens WHERE meta_message_id = :mid LIMIT 1";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([':mid' => $messageId]);
+        return $stmt->fetch() !== false;
+    } catch (Throwable $e) {
+        // Se a coluna não existe, ignora a verificação
+        if (function_exists('log_app_event')) {
+            log_app_event('whatsapp_bot', 'erro_verificar_idempotencia', ['erro' => $e->getMessage()]);
+        }
+        return false;
+    }
+}
 
 /**
  * Retorna 'humano' ou 'bot' para uma conversa, com base em atendimentos abertos.
@@ -308,9 +337,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     continue;
                 }
 
+                $messageId = $msg['id'] ?? '';
                 $from  = $msg['from'] ?? null;
                 $texto = $msg['text']['body'] ?? '';
 
+                // Verifica idempotência para prevenir processamento duplicado
+                if ($messageId !== '' && whatsapp_message_already_processed($pdo, $messageId)) {
+                    continue;
+                }
                 
                 // Atualiza SLA de lead com base no telefone de origem
                 whatsapp_atualizar_sla_para_telefone($pdo, $from);
@@ -327,18 +361,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $modoAtendimento = whatsapp_obter_modo_atendimento($pdo, $conversaId);
                     if ($modoAtendimento === 'humano') {
                         // Apenas registra mensagem; atendimento é do humano, não do bot.
+                        whatsapp_insert_message($pdo, $conversaId, 'in', 'cliente', $texto, $msg, null, null, $messageId);
                         $pdo->commit();
-                        whatsapp_webhook_json_response(['success' => true, 'handled' => 'human'], 200);
+                        continue; // Continua para próxima mensagem
                     }
 
-                    whatsapp_insert_message($pdo, $conversaId, 'in', 'cliente', $texto, $msg);
+                    whatsapp_insert_message($pdo, $conversaId, 'in', 'cliente', $texto, $msg, null, null, $messageId);
 
                     $history   = whatsapp_build_history_for_llm($pdo, $conversaId, 10);
                     $llmResult = whatsapp_bot_chamar_llm($texto, $history, $settings);
                     $resposta  = $llmResult['ok'] ? ($llmResult['resposta'] ?? '') : '';
 
                     if ($resposta !== '') {
-                        whatsapp_insert_message($pdo, $conversaId, 'out', 'bot', $resposta, [], $settings['llm_model'] ?? null, null);
+                        whatsapp_insert_message($pdo, $conversaId, 'out', 'bot', $resposta, [], $settings['llm_model'] ?? null, null, null);
                         whatsapp_send_text($phoneNumberId, $accessToken, $from, $resposta);
                     }
 

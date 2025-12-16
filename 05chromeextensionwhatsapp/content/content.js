@@ -1558,6 +1558,27 @@ ${transcript || '(não consegui ler mensagens)'}
         border-radius: 14px;
         background: rgba(5,7,15,0.35);
       }
+      .scheduled-item {
+        padding: 8px 10px;
+        margin: 6px 0;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        background: rgba(5,7,15,0.45);
+        font-size: 11px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      .scheduled-item .info {
+        flex: 1;
+        line-height: 1.4;
+      }
+      .scheduled-item button {
+        padding: 4px 8px;
+        font-size: 10px;
+        min-width: 60px;
+      }
 
       .progress-wrap {
         margin-top: 10px;
@@ -1716,6 +1737,12 @@ ${transcript || '(não consegui ler mensagens)'}
             <div class="progress-wrap" id="campProgress" style="display:none;">
               <div class="progress-bar" id="campProgressBar"></div>
               <span class="progress-text" id="campProgressText">0/0</span>
+            </div>
+
+            <!-- Scheduled Campaigns List -->
+            <div id="scheduledCampaignsBox" style="margin-top:15px; display:none;">
+              <label>📅 Campanhas Agendadas</label>
+              <div id="scheduledCampaignsList" style="max-height:200px; overflow:auto;"></div>
             </div>
           </div>
 
@@ -2133,6 +2160,8 @@ ${transcript || '(não consegui ler mensagens)'}
     const scheduleNow = shadow.getElementById('scheduleNow');
     const scheduleLater = shadow.getElementById('scheduleLater');
     const scheduleDateTime = shadow.getElementById('scheduleDateTime');
+    const scheduledCampaignsBox = shadow.getElementById('scheduledCampaignsBox');
+    const scheduledCampaignsList = shadow.getElementById('scheduledCampaignsList');
 
     // Preview modal elements
     const previewModal = shadow.getElementById('previewModal');
@@ -2187,8 +2216,6 @@ ${transcript || '(não consegui ler mensagens)'}
       campDomBox.style.display = (m === 'dom') ? 'block' : 'none';
       campApiBox.style.display = (m === 'api') ? 'block' : 'none';
     }
-    campMode.addEventListener('change', renderCampMode);
-    renderCampMode();
 
     // Schedule radio button logic
     function updateScheduleInputs() {
@@ -2313,6 +2340,65 @@ ${transcript || '(não consegui ler mensagens)'}
         });
       });
     }
+
+    async function refreshScheduledCampaignsList() {
+      if (!scheduledCampaignsBox || !scheduledCampaignsList) return;
+
+      const campaigns = await getScheduledCampaigns();
+      
+      if (campaigns.length === 0) {
+        scheduledCampaignsBox.style.display = 'none';
+        return;
+      }
+
+      scheduledCampaignsBox.style.display = 'block';
+      
+      scheduledCampaignsList.innerHTML = campaigns.map(camp => {
+        const scheduledDate = new Date(camp.scheduledTime);
+        const contactCount = camp.entries ? camp.entries.length : 0;
+        const messagePreview = (camp.message || '').slice(0, 30) + (camp.message && camp.message.length > 30 ? '...' : '');
+        
+        return `
+          <div class="scheduled-item" data-camp-id="${camp.id}">
+            <div class="info">
+              <div><strong>📅 ${scheduledDate.toLocaleString('pt-BR')}</strong></div>
+              <div>👥 ${contactCount} contatos</div>
+              <div style="color:var(--muted);">${messagePreview}</div>
+            </div>
+            <button class="danger cancel-scheduled" data-camp-id="${camp.id}">Cancelar</button>
+          </div>
+        `;
+      }).join('');
+
+      // Add event listeners for cancel buttons
+      const cancelButtons = scheduledCampaignsList.querySelectorAll('.cancel-scheduled');
+      cancelButtons.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const campId = btn.getAttribute('data-camp-id');
+          if (campId) {
+            try {
+              await removeScheduledCampaign(campId);
+              setCampDomStatus(`✅ Agendamento ${campId} cancelado.`, 'ok');
+              await refreshScheduledCampaignsList();
+            } catch (err) {
+              setCampDomStatus(`❌ Erro ao cancelar: ${err?.message || String(err)}`, 'err');
+            }
+          }
+        });
+      });
+    }
+
+    // Refresh scheduled campaigns list when DOM mode is shown
+    function renderCampModeWithScheduled() {
+      renderCampMode();
+      if (campMode.value === 'dom') {
+        refreshScheduledCampaignsList();
+      }
+    }
+
+    campMode.addEventListener('change', renderCampModeWithScheduled);
+    renderCampModeWithScheduled();
 
     async function executeDomCampaign(entries, msg) {
       debugLog('Iniciando campanha DOM com', entries.length, 'contatos');
@@ -2475,6 +2561,10 @@ ${transcript || '(não consegui ler mensagens)'}
           });
 
           setCampDomStatus(`✅ Campanha agendada para ${scheduledDate.toLocaleString('pt-BR')}`, 'ok');
+          
+          // Refresh the scheduled campaigns list
+          await refreshScheduledCampaignsList();
+          
           return;
         }
 

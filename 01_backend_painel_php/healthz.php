@@ -57,7 +57,13 @@ if ($hasDbConfig && class_exists(\RedeAlabama\Support\Config::class)) {
 $ok = true; // sempre 200 (Railway readiness), mas reporta status no payload
 $status = ($dbOk === true) ? 'ok' : 'degraded';
 
-http_response_code(200);
+// Modo strict: retorna 503 quando DB está indisponível
+$strictHealth = getenv('ALABAMA_STRICT_HEALTHCHECK') === '1';
+if ($strictHealth && $dbOk === false) {
+    http_response_code(503);
+} else {
+    http_response_code(200);
+}
 
 echo json_encode([
     'ok'        => $ok,

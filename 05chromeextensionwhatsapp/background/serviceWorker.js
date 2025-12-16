@@ -36,6 +36,19 @@ const DEFAULTS = {
   memoryServerUrl: "",
   memoryWorkspaceKey: "",
   memorySyncEnabled: false,
+  
+  // Copilot mode
+  copilotEnabled: false,
+  copilotThreshold: 70,
+  confidenceScore: 0,
+  confidenceStats: {
+    total_good: 0,
+    total_bad: 0,
+    total_corrections: 0,
+    total_auto_sent: 0,
+    total_suggestions_used: 0,
+    total_suggestions_edited: 0
+  }
 };
 
 async function getSettings() {
@@ -405,6 +418,144 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           await chrome.alarms.clear(campaignId);
         }
         return ok(sendResponse, { cancelled: true });
+      }
+
+      // -------------------------
+      // Copilot Mode / AI Confidence
+      // -------------------------
+      if (msg.type === "GET_CONFIDENCE") {
+        const settings = await getSettings();
+        
+        // Try to get from backend first
+        if (settings.backendUrl) {
+          try {
+            const data = await callBackendJson({
+              backendUrl: settings.backendUrl,
+              path: "/api/ai_confidence.php",
+              payload: {},
+              secret: settings.backendSecret
+            });
+            
+            if (data?.ok) {
+              // Update local cache
+              await chrome.storage.local.set({
+                confidenceScore: data.score || 0,
+                copilotEnabled: data.config?.copilot_enabled || false,
+                copilotThreshold: data.config?.copilot_threshold || 70,
+                confidenceStats: data.metrics || DEFAULTS.confidenceStats
+              });
+              
+              return ok(sendResponse, data);
+            }
+          } catch (e) {
+            console.warn("Failed to fetch confidence from backend:", e);
+          }
+        }
+        
+        // Fallback to local storage
+        return ok(sendResponse, {
+          ok: true,
+          score: settings.confidenceScore || 0,
+          level: {
+            level: 'beginner',
+            label: 'Iniciante',
+            color: '#ef4444',
+            emoji: '🔴',
+            description: 'IA apenas sugere respostas'
+          },
+          metrics: settings.confidenceStats || DEFAULTS.confidenceStats,
+          config: {
+            copilot_enabled: settings.copilotEnabled || false,
+            copilot_threshold: settings.copilotThreshold || 70
+          },
+          points_to_threshold: (settings.copilotThreshold || 70) - (settings.confidenceScore || 0)
+        });
+      }
+
+      if (msg.type === "UPDATE_CONFIDENCE") {
+        const settings = await getSettings();
+        const payload = msg.payload || {};
+        
+        if (settings.backendUrl) {
+          try {
+            const data = await callBackendJson({
+              backendUrl: settings.backendUrl,
+              path: "/api/ai_confidence.php",
+              payload,
+              secret: settings.backendSecret
+            });
+            
+            if (data?.ok) {
+              // Update local cache
+              await chrome.storage.local.set({
+                confidenceScore: data.score || 0
+              });
+            }
+            
+            return ok(sendResponse, data);
+          } catch (e) {
+            return fail(sendResponse, e);
+          }
+        }
+        
+        // If no backend, just update local
+        return ok(sendResponse, { ok: true, local_only: true });
+      }
+
+      if (msg.type === "TOGGLE_COPILOT") {
+        const enabled = Boolean(msg.enabled);
+        const settings = await getSettings();
+        
+        if (settings.backendUrl) {
+          try {
+            const data = await callBackendJson({
+              backendUrl: settings.backendUrl,
+              path: "/api/ai_confidence.php",
+              payload: { action: "toggle_copilot", enabled },
+              secret: settings.backendSecret
+            });
+            
+            if (data?.ok) {
+              await chrome.storage.local.set({ copilotEnabled: enabled });
+            }
+            
+            return ok(sendResponse, data);
+          } catch (e) {
+            return fail(sendResponse, e);
+          }
+        }
+        
+        // Fallback to local
+        await chrome.storage.local.set({ copilotEnabled: enabled });
+        return ok(sendResponse, { ok: true, copilot_enabled: enabled });
+      }
+
+      if (msg.type === "SET_THRESHOLD") {
+        const threshold = Number(msg.threshold || 70);
+        const settings = await getSettings();
+        
+        if (settings.backendUrl) {
+          try {
+            const data = await callBackendJson({
+              backendUrl: settings.backendUrl,
+              path: "/api/ai_confidence.php",
+              payload: { action: "set_threshold", threshold },
+              secret: settings.backendSecret
+            });
+            
+            if (data?.ok) {
+              await chrome.storage.local.set({ copilotThreshold: threshold });
+            }
+            
+            return ok(sendResponse, data);
+          } catch (e) {
+            return fail(sendResponse, e);
+          }
+        }
+        
+        // Fallback to local
+        await chrome.storage.local.set({ copilotThreshold: threshold });
+        return ok(sendResponse, { ok: true, copilot_threshold: threshold });
       }
 
       // -------------------------

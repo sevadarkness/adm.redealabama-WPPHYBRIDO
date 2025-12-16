@@ -119,6 +119,62 @@ function auto_migrate_run(PDO $pdo): array {
         $results[] = ['table' => 'user_favorites', 'status' => 'exists'];
     }
     
+    // Migration: ai_confidence_metrics
+    if (!auto_migrate_table_exists($pdo, 'ai_confidence_metrics')) {
+        $sql = "CREATE TABLE IF NOT EXISTS ai_confidence_metrics (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            score DECIMAL(5,2) DEFAULT 0,
+            total_good INT DEFAULT 0,
+            total_bad INT DEFAULT 0,
+            total_corrections INT DEFAULT 0,
+            total_auto_sent INT DEFAULT 0,
+            total_suggestions_used INT DEFAULT 0,
+            total_suggestions_edited INT DEFAULT 0,
+            total_faq INT DEFAULT 0,
+            total_products INT DEFAULT 0,
+            total_examples INT DEFAULT 0,
+            copilot_enabled TINYINT(1) DEFAULT 0,
+            copilot_threshold DECIMAL(5,2) DEFAULT 70.00,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+        
+        try {
+            $pdo->exec($sql);
+            $results[] = ['table' => 'ai_confidence_metrics', 'status' => 'created'];
+        } catch (Throwable $e) {
+            $results[] = ['table' => 'ai_confidence_metrics', 'status' => 'error', 'message' => $e->getMessage()];
+        }
+    } else {
+        $results[] = ['table' => 'ai_confidence_metrics', 'status' => 'exists'];
+    }
+    
+    // Migration: ai_confidence_log
+    if (!auto_migrate_table_exists($pdo, 'ai_confidence_log')) {
+        $sql = "CREATE TABLE IF NOT EXISTS ai_confidence_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            action VARCHAR(50) NOT NULL,
+            points DECIMAL(5,2) NOT NULL,
+            reason TEXT,
+            metadata JSON,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user_date (user_id, created_at),
+            INDEX idx_action (action)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+        
+        try {
+            $pdo->exec($sql);
+            $results[] = ['table' => 'ai_confidence_log', 'status' => 'created'];
+        } catch (Throwable $e) {
+            $results[] = ['table' => 'ai_confidence_log', 'status' => 'error', 'message' => $e->getMessage()];
+        }
+    } else {
+        $results[] = ['table' => 'ai_confidence_log', 'status' => 'exists'];
+    }
+    
     return $results;
 }
 

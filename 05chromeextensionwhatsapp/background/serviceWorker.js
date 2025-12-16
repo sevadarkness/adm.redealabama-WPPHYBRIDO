@@ -1,0 +1,339 @@
+// background/serviceWorker.js
+// MV3 Service Worker - handlers must be registered at top-level.
+//
+// WhatsHybrid Lite (Alabama) v0.2.x
+// - OpenAI direct calls (chat/completions)
+// - Optional backend proxy calls (AI + Campaigns)
+// - Settings stored in chrome.storage.local
+//
+// NOTE: This service worker is intentionally small and defensive.
+
+const DEFAULTS = {
+  // Providers
+  provider: "openai",            // "openai" | "backend"
+  openaiApiKey: "",
+  openaiModel: "gpt-4o-mini",
+
+  // Backend (proxy/API)
+  backendUrl: "",
+  backendAiPath: "/ai/chat.php",
+  backendCampaignPath: "/api/campaigns.php",
+
+  // Optional: shared secret header for backend endpoints
+  backendSecret: "",
+
+  // Generation
+  temperature: 0.7,
+  maxTokens: 450,
+
+  // Chatbot behavior (used by content script)
+  persona: "",
+  businessContext: "",
+  autoSuggest: false,
+  autoMemory: false,
+
+  // Hybrid memory server (optional)
+  memoryServerUrl: "",
+  memoryWorkspaceKey: "",
+  memorySyncEnabled: false,
+};
+
+async function getSettings() {
+  const data = await chrome.storage.local.get(Object.keys(DEFAULTS));
+  return { ...DEFAULTS, ...data };
+}
+
+function ok(sendResponse, payload) {
+  try { sendResponse({ ok: true, ...payload }); } catch (_) {}
+}
+
+function fail(sendResponse, error, extra = {}) {
+  const msg = (error && error.message) ? error.message : String(error || "Erro desconhecido");
+  try { sendResponse({ ok: false, error: msg, ...extra }); } catch (_) {}
+}
+
+function clampNumber(v, min, max, fallback) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+
+async function callMemoryJson({ settings, path, method = "POST", body }) {
+  const base = String(settings?.memoryServerUrl || "").trim();
+  const key = String(settings?.memoryWorkspaceKey || "").trim();
+  if (!base || !key) throw new Error("Memory server não configurado (URL/chave).");
+
+  const url = base.replace(/\/+$/, "") + path;
+  const resp = await fetch(url, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Workspace-Key": key
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const msg = data?.error || data?.message || `HTTP ${resp.status}`;
+    throw new Error(`Memory server: ${msg}`);
+  }
+  return data;
+}
+
+async function enqueueMemoryEvent(ev) {
+  const res = await chrome.storage.local.get(["whl_sync_queue"]);
+  const q = Array.isArray(res?.whl_sync_queue) ? res.whl_sync_queue : [];
+  q.push({ ...ev, at: Date.now() });
+  // Keep queue bounded
+  const bounded = q.slice(-500);
+  await chrome.storage.local.set({ whl_sync_queue: bounded });
+  return bounded.length;
+}
+
+async function flushMemoryQueue(settings) {
+  const res = await chrome.storage.local.get(["whl_sync_queue"]);
+  const q = Array.isArray(res?.whl_sync_queue) ? res.whl_sync_queue : [];
+  if (!q.length) return { ok: true, flushed: 0 };
+
+  // Try batch endpoint
+  const data = await callMemoryJson({
+    settings,
+    path: "/v1/memory/batch.php",
+    body: { events: q }
+  });
+
+  // If server accepted, clear queue
+  await chrome.storage.local.set({ whl_sync_queue: [] });
+  return { ok: true, flushed: q.length, server: data };
+}
+
+function normalizePath(p, fallback) {
+  const s = String(p || "").trim();
+  if (!s) return fallback;
+  return s.startsWith("/") ? s : `/${s}`;
+}
+
+async function callOpenAI({ apiKey, model, messages, temperature, maxTokens }) {
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens
+    })
+  });
+
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const errMsg = data?.error?.message || `HTTP ${resp.status}`;
+    throw new Error(errMsg);
+  }
+
+  const text = data?.choices?.[0]?.message?.content || "";
+  return { text, raw: data };
+}
+
+async function callBackendJson({ backendUrl, path, payload, secret }) {
+  const base = String(backendUrl || "").trim().replace(/\/$/, "");
+  if (!base) throw new Error("Backend URL não configurado.");
+  const p = normalizePath(path, "/");
+  const resp = await fetch(`${base}${p}`, {
+    method: "POST",
+    headers: Object.assign({ "Content-Type": "application/json" }, secret ? { "X-Alabama-Proxy-Key": secret } : {}),
+    body: JSON.stringify(payload || {})
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const errMsg = data?.error || data?.message || `HTTP ${resp.status}`;
+    throw new Error(errMsg);
+  }
+  return data;
+}
+
+// Keep event handlers at top-level (MV3 requirement)
+chrome.runtime.onInstalled.addListener(() => {
+  console.log("[WhatsHybrid Lite] instalado/atualizado");
+});
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  (async () => {
+    try {
+      if (!msg || !msg.type) return ok(sendResponse, { ignored: true });
+
+      // -------------------------
+      // Settings
+      // -------------------------
+      if (msg.type === "GET_SETTINGS") {
+        const settings = await getSettings();
+        return ok(sendResponse, { settings });
+      }
+
+      if (msg.type === "SAVE_SETTINGS") {
+        const incoming = msg.settings || {};
+        const clean = {};
+
+        for (const k of Object.keys(DEFAULTS)) {
+          if (Object.prototype.hasOwnProperty.call(incoming, k)) clean[k] = incoming[k];
+        }
+
+        // small sanity
+        if (typeof clean.provider !== "string") clean.provider = DEFAULTS.provider;
+        if (typeof clean.openaiApiKey !== "string") clean.openaiApiKey = "";
+        if (typeof clean.openaiModel !== "string") clean.openaiModel = DEFAULTS.openaiModel;
+        if (typeof clean.backendUrl !== "string") clean.backendUrl = "";
+        if (typeof clean.backendSecret !== "string") clean.backendSecret = "";
+        clean.backendAiPath = normalizePath(clean.backendAiPath, DEFAULTS.backendAiPath);
+        clean.backendCampaignPath = normalizePath(clean.backendCampaignPath, DEFAULTS.backendCampaignPath);
+
+        clean.temperature = clampNumber(clean.temperature, 0, 2, DEFAULTS.temperature);
+        clean.maxTokens = clampNumber(clean.maxTokens, 50, 4000, DEFAULTS.maxTokens);
+
+        clean.persona = String(clean.persona || "");
+        clean.businessContext = String(clean.businessContext || "");
+        clean.autoSuggest = Boolean(clean.autoSuggest);
+        clean.autoMemory = Boolean(clean.autoMemory);
+
+        await chrome.storage.local.set(clean);
+
+        // Push context to memory server (optional)
+        try {
+          const settings = await getSettings();
+          if (settings.memorySyncEnabled && settings.memoryServerUrl && settings.memoryWorkspaceKey) {
+            await callMemoryJson({
+              settings,
+              path: "/v1/memory/context.php",
+              body: {
+                persona: settings.persona || "",
+                businessContext: settings.businessContext || ""
+              }
+            });
+            // also attempt to flush any queued events
+            await flushMemoryQueue(settings).catch(() => {});
+          }
+        } catch (e) {
+          // best-effort, don't block save
+        }
+
+        return ok(sendResponse, { saved: true });
+      }
+
+      // -------------------------
+      // AI Chat (used by content script)
+      // -------------------------
+      if (msg.type === "AI_CHAT") {
+        const settings = await getSettings();
+        const provider = (msg.provider || settings.provider || DEFAULTS.provider);
+
+        // Backend proxy
+        if (provider === "backend") {
+          const payload =
+            msg.payload ||
+            {
+              messages: msg.messages || [],
+              model: msg.model || settings.openaiModel,
+              temperature: typeof msg.temperature === "number" ? msg.temperature : settings.temperature,
+              max_tokens: typeof msg.maxTokens === "number" ? msg.maxTokens : settings.maxTokens
+            };
+
+          const data = await callBackendJson({
+            backendUrl: settings.backendUrl,
+            path: settings.backendAiPath,
+            payload,
+            secret: settings.backendSecret
+          });
+
+          const text =
+            data?.text ??
+            data?.message ??
+            data?.choices?.[0]?.message?.content ??
+            "";
+
+          return ok(sendResponse, { text });
+        }
+
+        // OpenAI direct
+        const apiKey = String(msg.apiKey || settings.openaiApiKey || "").trim();
+        if (!apiKey) throw new Error("OpenAI API Key não configurada.");
+        const model = String(msg.model || settings.openaiModel || DEFAULTS.openaiModel);
+        const temperature = typeof msg.temperature === "number" ? msg.temperature : settings.temperature;
+        const maxTokens = typeof msg.maxTokens === "number" ? msg.maxTokens : settings.maxTokens;
+
+        const res = await callOpenAI({
+          apiKey,
+          model,
+          messages: msg.messages || [],
+          temperature,
+          maxTokens
+        });
+
+        return ok(sendResponse, { text: res.text });
+      }
+
+      
+      // -------------------------
+      // Hybrid Memory Server (optional)
+      // -------------------------
+      if (msg.type === "MEMORY_PUSH") {
+        const settings = await getSettings();
+        // Always enqueue first (so we never lose it)
+        await enqueueMemoryEvent(msg.event || { type: "unknown" });
+
+        if (settings.memorySyncEnabled && settings.memoryServerUrl && settings.memoryWorkspaceKey) {
+          try {
+            const r = await flushMemoryQueue(settings);
+            return ok(sendResponse, { flushed: r.flushed || 0 });
+          } catch (e) {
+            return ok(sendResponse, { queued: true });
+          }
+        }
+        return ok(sendResponse, { queued: true });
+      }
+
+      if (msg.type === "MEMORY_QUERY") {
+        const settings = await getSettings();
+        if (!(settings.memorySyncEnabled && settings.memoryServerUrl && settings.memoryWorkspaceKey)) {
+          return ok(sendResponse, { ok: false, disabled: true });
+        }
+
+        const payload = msg.payload || {};
+        const data = await callMemoryJson({ settings, path: "/v1/memory/query.php", body: payload });
+        return ok(sendResponse, { ok: true, data });
+      }
+
+
+// -------------------------
+      // Campaigns via Backend API
+      // -------------------------
+      if (msg.type === "CAMPAIGN_API_CREATE") {
+        const settings = await getSettings();
+        const payload = msg.payload || {};
+
+        const data = await callBackendJson({
+          backendUrl: settings.backendUrl,
+          path: settings.backendCampaignPath,
+          payload,
+          secret: settings.backendSecret
+        });
+
+        return ok(sendResponse, { data });
+      }
+
+      // -------------------------
+      // Unknown
+      // -------------------------
+      return ok(sendResponse, { unknownType: msg.type });
+    } catch (e) {
+      return fail(sendResponse, e);
+    }
+  })();
+
+  // return true to keep sendResponse valid async
+  return true;
+});

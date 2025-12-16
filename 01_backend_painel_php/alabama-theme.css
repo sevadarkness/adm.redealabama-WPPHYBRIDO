@@ -1,0 +1,172 @@
+
+/* Tema global preto e roxo – Rede Alabama */
+
+:root {
+    --alabama-bg: #05010d;
+    --alabama-bg-alt: #09011a;
+    --alabama-card-bg: #0f172a;
+    --alabama-border: #312e81;
+    --alabama-primary: #8b5cf6;
+    --alabama-primary-soft: #a855f7;
+    --alabama-accent: #22d3ee;
+    --alabama-text: #e5e7eb;
+    --alabama-text-muted: #9ca3af;
+    --alabama-danger: #f97373;
+    --alabama-success: #4ade80;
+}
+
+body {
+    background: radial-gradient(circle at top, #111827 0%, #020014 45%, #020617 100%);
+    color: var(--alabama-text);
+    min-height: 100vh;
+}
+
+/* Navegação */
+
+.navbar,
+.navbar.navbar-dark {
+    background: linear-gradient(90deg, #020617 0%, #111827 40%, #4c1d95 100%);
+    border-bottom: 1px solid var(--alabama-border);
+}
+
+.navbar-brand,
+.navbar-dark .navbar-nav .nav-link,
+.navbar-nav .nav-link {
+    color: var(--alabama-text-muted) !important;
+    font-weight: 500;
+}
+
+.navbar-nav .nav-link.active,
+.navbar-nav .nav-link:hover,
+.navbar-dark .navbar-nav .nav-link:hover {
+    color: var(--alabama-primary-soft) !important;
+}
+
+/* Cards e boxes */
+
+.card,
+.panel,
+.panel-default {
+    background: radial-gradient(circle at top left, #111827 0%, #020617 70%);
+    border-radius: 0.75rem;
+    border: 1px solid rgba(49, 46, 129, 0.7);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.8);
+    color: var(--alabama-text);
+}
+
+.card-header,
+.panel-heading {
+    background: linear-gradient(90deg, rgba(76, 29, 149, 0.6), rgba(30, 64, 175, 0.7));
+    border-bottom: 1px solid rgba(129, 140, 248, 0.45);
+    font-weight: 600;
+}
+
+/* Tabelas */
+
+table {
+    color: var(--alabama-text);
+}
+
+.table thead th {
+    background: linear-gradient(90deg, #111827, #1f2937);
+    border-bottom: 1px solid var(--alabama-border);
+    color: #e5e7eb;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(15, 23, 42, 0.8);
+}
+
+.table-striped tbody tr:nth-of-type(even) {
+    background-color: rgba(17, 24, 39, 0.85);
+}
+
+/* Botões */
+
+.btn-primary,
+.btn-success,
+.btn-danger,
+.btn-info,
+.btn-warning {
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    box-shadow: 0 10px 22px rgba(129, 140, 248, 0.35);
+    transition: transform 0.08s ease-out, box-shadow 0.08s ease-out, background 0.12s ease-out;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #8b5cf6, #4c1d95);
+    border-color: #8b5cf6;
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 18px 35px rgba(129, 140, 248, 0.55);
+    background: linear-gradient(135deg, #a855f7, #5b21b6);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #22c55e, #14532d);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #ef4444, #7f1d1d);
+}
+
+/* Inputs */
+
+.form-control,
+.input-group-text,
+.form-select {
+    background-color: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(55, 48, 163, 0.8);
+    color: var(--alabama-text);
+}
+
+.form-control:focus,
+.form-select:focus {
+    background-color: rgba(15, 23, 42, 1);
+    border-color: var(--alabama-primary);
+    box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.75);
+}
+
+/* Links */
+
+a {
+    color: var(--alabama-primary);
+}
+
+a:hover {
+    color: var(--alabama-accent);
+}
+
+/* Login */
+
+body.login-page,
+body#login-page {
+    background: radial-gradient(circle at top, #0f172a 0%, #020014 55%, #020617 100%);
+}
+
+.login-card {
+    max-width: 420px;
+    margin: 4rem auto;
+}
+
+/* Alertas */
+
+.alert {
+    border-radius: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    background-color: rgba(15, 23, 42, 0.92);
+    color: var(--alabama-text);
+}
+
+/* Rodapé */
+
+footer {
+    background: linear-gradient(90deg, #020617, #0f172a);
+    border-top: 1px solid rgba(55, 48, 163, 0.7);
+    color: var(--alabama-text-muted);
+}

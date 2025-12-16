@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WhatsHybrid Lite</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand">
+        <div class="logo">WH</div>
+        <div class="titles">
+          <h1>WhatsHybrid Lite</h1>
+          <p class="muted">Configurações • IA • Campanhas • Contatos</p>
+        </div>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="cardTitle">Conexão</div>
+
+      <label>Provider</label>
+      <select id="provider">
+        <option value="openai">OpenAI direto</option>
+        <option value="backend">Backend (proxy)</option>
+      </select>
+
+      <label>OpenAI API Key</label>
+      <div class="row">
+        <div class="col">
+          <input id="openaiApiKey" placeholder="sk-..." type="password" />
+        </div>
+        <button id="toggleKey" class="mini" type="button" title="Mostrar/ocultar">👁</button>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <label>Modelo (OpenAI)</label>
+          <input id="openaiModel" placeholder="gpt-4o-mini" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <label>Temperatura</label>
+          <input id="temperature" type="number" min="0" max="2" step="0.1" />
+        </div>
+        <div class="col">
+          <label>Max tokens</label>
+          <input id="maxTokens" type="number" min="50" max="4000" step="10" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardTitle">Backend (opcional)</div>
+
+      <label>Backend URL</label>
+      <input id="backendUrl" placeholder="https://seu-backend.com" />
+
+      <label>Backend Secret (opcional)</label>
+      <input id="backendSecret" placeholder="X-Alabama-Proxy-Key" />
+
+      <div class="row">
+        <div class="col">
+          <label>AI path</label>
+          <input id="backendAiPath" placeholder="/ai/chat.php" />
+        </div>
+        <div class="col">
+          <label>Campanhas path</label>
+          <input id="backendCampaignPath" placeholder="/api/campaigns.php" />
+        </div>
+      </div>
+
+      <p class="hint">
+        Use backend para IA e/ou campanhas pela API oficial. O modo DOM é assistido dentro do WhatsApp Web.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="cardTitle">Chatbot (robustez)</div>
+
+      <label>Persona / Regras (system)</label>
+      <textarea id="persona" rows="4" placeholder="Ex.: Você é um atendente premium. Seja objetivo, cordial e sempre confirme detalhes antes de prometer."></textarea>
+
+      <label>Contexto do negócio (conhecimento)</label>
+      <textarea id="businessContext" rows="5" placeholder="Cole aqui informações do negócio: produtos, preços, horários, políticas, links, objeções, tom de voz..."></textarea>
+
+      <div class="row">
+        <label class="check">
+          <input type="checkbox" id="autoSuggest" />
+          <span>Auto-sugerir respostas</span>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="autoMemory" />
+          <span>Auto-memória (Leão)</span>
+        </label>
+      </div>
+
+      <p class="hint">
+        Dica: No WhatsApp Web, use o botão <b>🤖</b> para abrir o painel.
+      </p>
+    </div>
+
+    
+    <div class="card">
+      <div class="cardTitle">Memória Híbrida (Servidor)</div>
+
+      <label>Memory Server URL</label>
+      <input id="memoryServerUrl" placeholder="https://seu-servidor.com" />
+
+      <div class="row">
+        <div class="col">
+          <label>Workspace Key</label>
+          <input id="memoryWorkspaceKey" placeholder="chave-do-workspace" />
+        </div>
+        <div class="col">
+          <label>Sync</label>
+          <div class="check">
+            <input id="memorySyncEnabled" type="checkbox" />
+            <label for="memorySyncEnabled" class="muted">Sincronizar memórias</label>
+          </div>
+        </div>
+      </div>
+
+      <p class="hint">
+        Mantém memória local (cache) e sincroniza para um servidor para não perder ao trocar de PC/navegador.
+      </p>
+    </div>
+
+    <div class="actions">
+      <button id="save" type="button" class="primary">Salvar</button>
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <footer class="foot">
+      Use com consentimento. Automação agressiva pode causar bloqueios.
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

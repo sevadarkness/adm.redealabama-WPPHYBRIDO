@@ -158,7 +158,13 @@ foreach ($jobs as $job) {
                 $falhas = 0;
                 
                 foreach ($compromissos as $comp) {
-                    $dataFormatada = (new DateTime($comp['data_hora_inicio']))->format('d/m/Y H:i');
+                    try {
+                        $dataFormatada = (new DateTime($comp['data_hora_inicio']))->format('d/m/Y H:i');
+                    } catch (Exception $e) {
+                        // Data inválida, pula este compromisso
+                        runner_log("Compromisso #{$comp['id']} com data inválida: {$comp['data_hora_inicio']}");
+                        continue;
+                    }
                     
                     // Monta mensagem de lembrete
                     $mensagem = "🔔 *Lembrete de Compromisso*\n\n";

@@ -138,30 +138,29 @@ $estoque_baixo = $stmt_estoque->fetchAll(PDO::FETCH_ASSOC);
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <link rel="stylesheet" href="alabama-theme.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel do Gerente - Dashboard</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <title>Painel Gerente - Alabama CMS</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="alabama-theme.css">
+    <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
+        /* Estilos específicos do painel gerente (override aplica o resto) */
         .dashboard-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--al-primary), var(--al-accent));
             color: white;
             padding: 2rem 0;
             margin-bottom: 2rem;
-            border-radius: 0.5rem;
+            border-radius: var(--al-radius-lg);
+            border: 1px solid var(--al-border);
+            box-shadow: var(--al-shadow-glow);
         }
         
+        /* KPI cards já são estilizados pelo override, mas podemos adicionar tweaks */
         .kpi-card {
-            background: white;
-            border-radius: 0.5rem;
+            /* O override já aplica estilos premium */
             padding: 1.5rem;
             margin-bottom: 1.5rem;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);

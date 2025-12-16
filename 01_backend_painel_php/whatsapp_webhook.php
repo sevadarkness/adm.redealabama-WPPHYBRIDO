@@ -343,7 +343,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Valida assinatura HMAC do Meta se app_secret estiver configurado
-    $appSecret = $settings['meta_app_secret'] ?? getenv('META_APP_SECRET') ?: '';
+    $appSecret = $settings['meta_app_secret'] ?? getenv('WHATSAPP_APP_SECRET') ?: getenv('META_APP_SECRET') ?: '';
     if ($appSecret !== '') {
         $signature = $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? '';
         if (!whatsapp_validate_signature($body, $signature, $appSecret)) {

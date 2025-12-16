@@ -66,16 +66,129 @@ foreach ($jobs as $job) {
 
         switch ($tipo) {
             case 'remarketing_disparo_batch':
-                // Exemplo: integração futura com api/v2/remarketing_disparos.php
-                // Por enquanto, apenas marcamos como "executado" sem ação externa.
+                // Implementação real: processa disparos de remarketing pendentes
+                $batchSize = (int)($payload['batch_size'] ?? 50);
+                $campaignId = (int)($payload['campaign_id'] ?? 0);
+                
+                // Busca disparos pendentes
+                $stmtDisparos = $pdo->prepare("
+                    SELECT id, telefone, mensagem 
+                    FROM remarketing_disparos 
+                    WHERE status = 'pendente' 
+                    AND (campaign_id = :cid OR :cid = 0)
+                    ORDER BY id ASC 
+                    LIMIT :limit
+                ");
+                $stmtDisparos->bindValue(':cid', $campaignId, PDO::PARAM_INT);
+                $stmtDisparos->bindValue(':limit', $batchSize, PDO::PARAM_INT);
+                $stmtDisparos->execute();
+                $disparos = $stmtDisparos->fetchAll(PDO::FETCH_ASSOC);
+                
+                if (empty($disparos)) {
+                    $ok = true;
+                    $msgOk = 'Nenhum disparo pendente encontrado.';
+                    break;
+                }
+                
+                require_once __DIR__ . '/whatsapp_official_api.php';
+                
+                $enviados = 0;
+                $falhas = 0;
+                
+                foreach ($disparos as $disparo) {
+                    $phoneE164 = whatsapp_normalize_phone_e164($disparo['telefone']);
+                    if ($phoneE164 === '') {
+                        // Telefone inválido - marca como falha
+                        $pdo->prepare("UPDATE remarketing_disparos SET status = 'falha', erro = 'Telefone inválido' WHERE id = :id")
+                            ->execute([':id' => $disparo['id']]);
+                        $falhas++;
+                        continue;
+                    }
+                    
+                    $result = whatsapp_api_send_text($phoneE164, $disparo['mensagem'], ['job_id' => $id]);
+                    
+                    if ($result['ok']) {
+                        $pdo->prepare("UPDATE remarketing_disparos SET status = 'enviado', enviado_em = NOW() WHERE id = :id")
+                            ->execute([':id' => $disparo['id']]);
+                        $enviados++;
+                    } else {
+                        $pdo->prepare("UPDATE remarketing_disparos SET status = 'falha', erro = :erro WHERE id = :id")
+                            ->execute([':id' => $disparo['id'], ':erro' => mb_substr($result['error'] ?? 'Erro desconhecido', 0, 500)]);
+                        $falhas++;
+                    }
+                    
+                    // Delay entre envios para evitar rate limiting
+                    usleep(random_int(500000, 1500000)); // 0.5s a 1.5s
+                }
+                
                 $ok = true;
-                $msgOk = 'Job de disparo remarketing marcado como executado (stub).';
+                $msgOk = "Remarketing batch processado: {$enviados} enviados, {$falhas} falhas.";
                 break;
 
             case 'lembrete_agenda_whatsapp':
-                // Exemplo: ler agenda_compromissos e criar mensagens via WhatsApp.
+                // Implementação real: envia lembretes de compromissos agendados
+                $antecedeniaMinutos = (int)($payload['antecedencia_minutos'] ?? 60);
+                
+                // Busca compromissos que começam nos próximos X minutos e ainda não tiveram lembrete enviado
+                $stmtAgenda = $pdo->prepare("
+                    SELECT a.id, a.titulo, a.data_hora_inicio, a.usuario_id, a.lead_id,
+                           u.nome AS usuario_nome, u.telefone AS usuario_telefone,
+                           l.nome_cliente, l.telefone_cliente
+                    FROM agenda_compromissos a
+                    JOIN usuarios u ON u.id = a.usuario_id
+                    LEFT JOIN leads l ON l.id = a.lead_id
+                    WHERE a.status = 'agendado'
+                    AND a.lembrete_enviado = 0
+                    AND a.data_hora_inicio BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL :min MINUTE)
+                    ORDER BY a.data_hora_inicio ASC
+                    LIMIT 50
+                ");
+                $stmtAgenda->execute([':min' => $antecedeniaMinutos]);
+                $compromissos = $stmtAgenda->fetchAll(PDO::FETCH_ASSOC);
+                
+                if (empty($compromissos)) {
+                    $ok = true;
+                    $msgOk = 'Nenhum lembrete pendente.';
+                    break;
+                }
+                
+                require_once __DIR__ . '/whatsapp_official_api.php';
+                
+                $enviados = 0;
+                $falhas = 0;
+                
+                foreach ($compromissos as $comp) {
+                    $dataFormatada = (new DateTime($comp['data_hora_inicio']))->format('d/m/Y H:i');
+                    
+                    // Monta mensagem de lembrete
+                    $mensagem = "🔔 *Lembrete de Compromisso*\n\n";
+                    $mensagem .= "📋 *{$comp['titulo']}*\n";
+                    $mensagem .= "📅 {$dataFormatada}\n";
+                    if (!empty($comp['nome_cliente'])) {
+                        $mensagem .= "👤 Cliente: {$comp['nome_cliente']}\n";
+                    }
+                    $mensagem .= "\n_Rede Alabama - Seu CRM Inteligente_";
+                    
+                    // Envia para o vendedor
+                    $phoneVendedor = whatsapp_normalize_phone_e164($comp['usuario_telefone'] ?? '');
+                    if ($phoneVendedor !== '') {
+                        $result = whatsapp_api_send_text($phoneVendedor, $mensagem, ['tipo' => 'lembrete_agenda']);
+                        if ($result['ok']) {
+                            $enviados++;
+                        } else {
+                            $falhas++;
+                        }
+                    }
+                    
+                    // Marca lembrete como enviado
+                    $pdo->prepare("UPDATE agenda_compromissos SET lembrete_enviado = 1 WHERE id = :id")
+                        ->execute([':id' => $comp['id']]);
+                    
+                    usleep(random_int(300000, 800000)); // 0.3s a 0.8s
+                }
+                
                 $ok = true;
-                $msgOk = 'Job de lembrete de agenda executado (stub).';
+                $msgOk = "Lembretes processados: {$enviados} enviados, {$falhas} falhas.";
                 break;
 
             default:

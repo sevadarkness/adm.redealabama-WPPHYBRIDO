@@ -94,6 +94,27 @@ $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 <div class="container mt-4">
     <div class="admin-card">
+        <?php if (isset($_GET['user_created'])): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle"></i> Usuário criado com sucesso!
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+            </div>
+        <?php endif; ?>
+
+        <?php if (isset($_GET['user_deleted'])): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle"></i> Usuário excluído com sucesso!
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($erro_add !== ''): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($erro_add, ENT_QUOTES, 'UTF-8'); ?>
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+            </div>
+        <?php endif; ?>
+
         <h3 class="text-primary mb-4">👋 Bem-vindo, <?php
             // Padronização: o login seta "nome_usuario".
             // Fallback: se o menu carregou o usuário do banco, usamos também.

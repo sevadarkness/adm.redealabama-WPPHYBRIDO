@@ -4993,32 +4993,69 @@ ${transcript || '(não consegui ler mensagens)'}
     const quickReplies = await loadQuickReplies();
     
     let html = '<h3>⚡ Respostas Rápidas</h3>';
-    
-    if (quickReplies.length === 0) {
-      html += '<p style="color: var(--text-muted); font-size: 11px;">Nenhuma resposta rápida cadastrada.</p>';
-    } else {
-      quickReplies.forEach((qr, idx) => {
-        html += `
-          <div class="quick-reply-item">
-            <strong>/${qr.trigger}</strong>
-            <div>${qr.response.slice(0, 50)}${qr.response.length > 50 ? '...' : ''}</div>
-          </div>
-        `;
-      });
-    }
+    html += '<div id="quickRepliesList" style="margin-bottom: 12px;"></div>';
     
     html += `
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
       <label>Gatilho (ex: ola):</label>
-      <input type="text" id="quickTrigger" placeholder="/ola">
+      <input type="text" id="quickTrigger" placeholder="ola">
       
       <label>Resposta:</label>
-      <textarea id="quickResponse" placeholder="Olá! Como posso ajudar?"></textarea>
+      <textarea id="quickResponse" placeholder="Olá! Como posso ajudar?" style="min-height: 60px;"></textarea>
       
       <button id="addQuick">Adicionar</button>
       <div class="status" id="quickStatus"></div>
     `;
     
     dropdown.innerHTML = html;
+    
+    async function renderQuickReplies() {
+      const listDiv = dropdown.querySelector('#quickRepliesList');
+      
+      // Reload fresh data from storage
+      const data = await chrome.storage.local.get(['quickReplies']);
+      const currentReplies = data.quickReplies || [];
+      
+      if (currentReplies.length === 0) {
+        listDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 11px;">Nenhuma resposta rápida cadastrada.</p>';
+      } else {
+        listDiv.innerHTML = currentReplies.map((qr, idx) => `
+          <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1;">
+              <strong style="color: #52c41a;">/${qr.trigger}</strong>
+              <div style="font-size: 11px; margin-top: 4px; color: var(--text-muted);">${qr.response.slice(0, 100)}${qr.response.length > 100 ? '...' : ''}</div>
+            </div>
+            <button class="remove-quick-btn" data-idx="${idx}" style="background: rgba(255,77,79,0.2); color: #ff4d4f; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; margin-left: 8px;">
+              🗑️
+            </button>
+          </div>
+        `).join('');
+        
+        // Add remove handlers
+        listDiv.querySelectorAll('.remove-quick-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const idx = parseInt(btn.dataset.idx);
+            
+            // Get fresh data before modifying
+            const freshData = await chrome.storage.local.get(['quickReplies']);
+            const freshReplies = freshData.quickReplies || [];
+            freshReplies.splice(idx, 1);
+            
+            await chrome.storage.local.set({ quickReplies: freshReplies });
+            
+            await renderQuickReplies();
+            const statusDiv = dropdown.querySelector('#quickStatus');
+            if (statusDiv) {
+              statusDiv.textContent = '✅ Resposta removida!';
+              statusDiv.className = 'status ok';
+              setTimeout(() => statusDiv.className = 'status', 3000);
+            }
+          });
+        });
+      }
+    }
+    
+    await renderQuickReplies();
     
     const addBtn = dropdown.querySelector('#addQuick');
     const statusDiv = dropdown.querySelector('#quickStatus');
@@ -5033,13 +5070,18 @@ ${transcript || '(não consegui ler mensagens)'}
         return;
       }
       
-      quickReplies.push({ trigger, response });
+      // Get fresh data before adding
+      const data = await chrome.storage.local.get(['quickReplies']);
+      const currentReplies = data.quickReplies || [];
+      currentReplies.push({ trigger, response });
       
-      chrome.storage.local.set({ quickReplies }, () => {
-        statusDiv.textContent = '✅ Resposta rápida adicionada!';
-        statusDiv.className = 'status ok';
-        loadQuickTab(dropdown);
-      });
+      await chrome.storage.local.set({ quickReplies: currentReplies });
+      
+      statusDiv.textContent = '✅ Resposta rápida adicionada!';
+      statusDiv.className = 'status ok';
+      dropdown.querySelector('#quickTrigger').value = '';
+      dropdown.querySelector('#quickResponse').value = '';
+      await renderQuickReplies();
     });
   }
   
@@ -5050,25 +5092,39 @@ ${transcript || '(não consegui ler mensagens)'}
         Gerencie os membros da equipe e envie mensagens em massa.
       </p>
       
+      <div id="teamList" style="margin-bottom: 12px;"></div>
+      
+      <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+        <button id="selectAllTeam" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); font-size: 10px; padding: 6px;">Selecionar Todos</button>
+        <button id="clearSelectionTeam" style="flex: 1; background: rgba(255,255,255,0.1); font-size: 10px; padding: 6px;">Limpar Seleção</button>
+      </div>
+      
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+      
       <label>Nome do Membro:</label>
       <input type="text" id="teamName" placeholder="João Silva">
       
       <label>Telefone:</label>
       <input type="text" id="teamPhone" placeholder="+5511999999999">
       
-      <label>Função:</label>
+      <label>Função/Cargo:</label>
       <input type="text" id="teamRole" placeholder="Atendente">
       
       <button id="addTeamMember">Adicionar Membro</button>
       
-      <div id="teamList" style="margin-top: 12px;"></div>
-      
       <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
       
-      <label>Mensagem para Equipe:</label>
-      <textarea id="teamMessage" placeholder="Mensagem para enviar à equipe..." style="min-height: 60px;"></textarea>
+      <h4 style="font-size: 12px; margin-bottom: 8px;">📤 Envio em Massa</h4>
       
-      <button id="sendToTeam">Enviar para Todos</button>
+      <label>Nome do Remetente:</label>
+      <input type="text" id="senderName" placeholder="Empresa XYZ">
+      
+      <label>Mensagem:</label>
+      <textarea id="teamMessage" placeholder="Olá {{nome}}! Sua mensagem aqui..." style="min-height: 60px;"></textarea>
+      
+      <div id="teamPreview" style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; margin: 8px 0; font-size: 11px; color: var(--text-muted);"></div>
+      
+      <button id="sendToTeam">📨 Enviar para Selecionados</button>
       
       <div class="status" id="teamStatus"></div>
     `;
@@ -5083,16 +5139,33 @@ ${transcript || '(não consegui ler mensagens)'}
           listDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 11px;">Nenhum membro cadastrado.</p>';
         } else {
           listDiv.innerHTML = members.map((m, idx) => `
-            <div class="team-member">
-              <div class="team-member-info">
+            <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" class="team-checkbox" data-idx="${idx}" ${m.selected ? 'checked' : ''} style="cursor: pointer;">
+              <div style="flex: 1; font-size: 11px;">
                 <strong>${m.name}</strong>
-                <div>${m.phone}${m.role ? ' • ' + m.role : ''}</div>
+                <div style="color: var(--text-muted);">${formatPhone(m.phone)}${m.role ? ' • ' + m.role : ''}</div>
               </div>
               <button class="remove-team-btn" data-idx="${idx}" style="background: rgba(255,77,79,0.2); color: #ff4d4f; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 10px;">
-                Remover
+                🗑️
               </button>
             </div>
           `).join('');
+          
+          // Add checkbox handlers
+          listDiv.querySelectorAll('.team-checkbox').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+              const idx = parseInt(e.target.dataset.idx);
+              chrome.storage.local.get(['team_members'], (res) => {
+                const mems = res.team_members || [];
+                if (mems[idx]) {
+                  mems[idx].selected = e.target.checked;
+                  chrome.storage.local.set({ team_members: mems }, () => {
+                    updatePreview();
+                  });
+                }
+              });
+            });
+          });
           
           // Add remove handlers
           listDiv.querySelectorAll('.remove-team-btn').forEach(btn => {
@@ -5112,6 +5185,41 @@ ${transcript || '(não consegui ler mensagens)'}
             });
           });
         }
+        
+        updatePreview();
+      });
+    }
+    
+    function formatPhone(phone) {
+      const cleaned = phone.replace(/\D/g, '');
+      if (cleaned.length === 13) {
+        return cleaned.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, '+$1 ($2) $3-$4');
+      } else if (cleaned.length === 11) {
+        return cleaned.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+      }
+      return phone;
+    }
+    
+    function updatePreview() {
+      chrome.storage.local.get(['team_members'], (result) => {
+        const members = result.team_members || [];
+        const selected = members.filter(m => m.selected);
+        const senderName = dropdown.querySelector('#senderName')?.value || 'Remetente';
+        const message = dropdown.querySelector('#teamMessage')?.value || 'Sua mensagem aqui...';
+        const previewDiv = dropdown.querySelector('#teamPreview');
+        
+        if (previewDiv) {
+          if (selected.length > 0) {
+            const preview = message.replace(/\{\{nome\}\}/g, selected[0].name || 'Nome');
+            previewDiv.innerHTML = `
+              <strong>📱 Preview:</strong><br>
+              <strong>${senderName}:</strong> ${preview.substring(0, 80)}${preview.length > 80 ? '...' : ''}<br>
+              <small style="color: #52c41a;">${selected.length} membro(s) selecionado(s)</small>
+            `;
+          } else {
+            previewDiv.innerHTML = '<small>Selecione membros para ver o preview</small>';
+          }
+        }
       });
     }
     
@@ -5119,7 +5227,31 @@ ${transcript || '(não consegui ler mensagens)'}
     
     const addBtn = dropdown.querySelector('#addTeamMember');
     const sendBtn = dropdown.querySelector('#sendToTeam');
+    const selectAllBtn = dropdown.querySelector('#selectAllTeam');
+    const clearSelBtn = dropdown.querySelector('#clearSelectionTeam');
     const statusDiv = dropdown.querySelector('#teamStatus');
+    const senderInput = dropdown.querySelector('#senderName');
+    const messageInput = dropdown.querySelector('#teamMessage');
+    
+    // Update preview on input
+    if (senderInput) senderInput.addEventListener('input', updatePreview);
+    if (messageInput) messageInput.addEventListener('input', updatePreview);
+    
+    selectAllBtn.addEventListener('click', () => {
+      chrome.storage.local.get(['team_members'], (result) => {
+        const members = result.team_members || [];
+        members.forEach(m => m.selected = true);
+        chrome.storage.local.set({ team_members: members }, loadTeamList);
+      });
+    });
+    
+    clearSelBtn.addEventListener('click', () => {
+      chrome.storage.local.get(['team_members'], (result) => {
+        const members = result.team_members || [];
+        members.forEach(m => m.selected = false);
+        chrome.storage.local.set({ team_members: members }, loadTeamList);
+      });
+    });
     
     addBtn.addEventListener('click', () => {
       const name = dropdown.querySelector('#teamName').value.trim();
@@ -5134,7 +5266,7 @@ ${transcript || '(não consegui ler mensagens)'}
       
       chrome.storage.local.get(['team_members'], (result) => {
         const members = result.team_members || [];
-        members.push({ name, phone, role });
+        members.push({ name, phone, role, selected: false });
         
         chrome.storage.local.set({ team_members: members }, () => {
           statusDiv.textContent = '✅ Membro adicionado!';
@@ -5148,6 +5280,7 @@ ${transcript || '(não consegui ler mensagens)'}
     });
     
     sendBtn.addEventListener('click', async () => {
+      const senderName = dropdown.querySelector('#senderName').value.trim();
       const message = dropdown.querySelector('#teamMessage').value.trim();
       
       if (!message) {
@@ -5158,29 +5291,35 @@ ${transcript || '(não consegui ler mensagens)'}
       
       chrome.storage.local.get(['team_members'], async (result) => {
         const members = result.team_members || [];
+        const selected = members.filter(m => m.selected);
         
-        if (members.length === 0) {
-          statusDiv.textContent = '❌ Nenhum membro cadastrado';
+        if (selected.length === 0) {
+          statusDiv.textContent = '❌ Selecione pelo menos um membro';
           statusDiv.className = 'status err';
           return;
         }
         
-        statusDiv.textContent = `🚀 Enviando para ${members.length} membros...`;
+        statusDiv.textContent = `🚀 Enviando para ${selected.length} membro(s)...`;
         statusDiv.className = 'status ok';
         sendBtn.disabled = true;
         
         try {
+          // Format message with sender name
+          const fullMessage = senderName ? `*${senderName}:* ${message}` : message;
+          
           // Convert to campaign format
-          const entries = members.map(m => ({
+          const entries = selected.map(m => ({
             name: m.name || '',
             number: m.phone || '',
             vars: { nome: m.name || '', numero: m.phone || '', funcao: m.role || '' }
           }));
           
-          await executeDomCampaignDirectly(entries, message, null);
+          await executeDomCampaignDirectly(entries, fullMessage, null);
           
-          statusDiv.textContent = '✅ Mensagens enviadas!';
+          statusDiv.textContent = `✅ Enviado para ${selected.length} membro(s)!`;
           statusDiv.className = 'status ok';
+          dropdown.querySelector('#teamMessage').value = '';
+          updatePreview();
         } catch (e) {
           statusDiv.textContent = `❌ Erro: ${e.message}`;
           statusDiv.className = 'status err';
@@ -5194,118 +5333,396 @@ ${transcript || '(não consegui ler mensagens)'}
   async function loadCopilotTab(dropdown) {
     const confidenceResp = await bg('GET_CONFIDENCE', {});
     const score = confidenceResp?.score || 0;
+    const level = confidenceResp?.level || {};
+    const metrics = confidenceResp?.metrics || {};
     const config = confidenceResp?.config || {};
+    const threshold = config.copilot_threshold || 70;
+    
+    const scoreColor = score >= 70 ? '#52c41a' : '#faad14';
+    const canEnable = score >= threshold;
     
     dropdown.innerHTML = `
       <h3>📊 Copilot</h3>
-      <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
-        Score de confiança do assistente IA
-      </p>
       
-      <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 6px; margin-bottom: 12px;">
-        <div style="font-size: 24px; font-weight: 600; color: ${score >= 70 ? '#52c41a' : '#faad14'};">
-          ${score}%
+      <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 6px; margin-bottom: 12px; text-align: center;">
+        <div style="font-size: 32px; font-weight: 700; color: ${scoreColor}; margin-bottom: 4px;">
+          ${Math.round(score)}%
         </div>
-        <div style="font-size: 10px; color: var(--text-muted);">
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
           Score de Confiança
+        </div>
+        <div style="font-size: 12px; font-weight: 600; color: #1890ff;">
+          Modo: ${level.label || 'Assistido'}
         </div>
       </div>
       
-      <label style="display: flex; align-items: center;">
-        <input type="checkbox" id="copilotEnabled" ${config.copilot_enabled ? 'checked' : ''}>
+      <label style="display: flex; align-items: center; margin-bottom: 12px;">
+        <input type="checkbox" id="copilotEnabled" ${config.copilot_enabled ? 'checked' : ''} ${!canEnable ? 'disabled' : ''}>
         <span>Ativar Copilot (envio automático)</span>
       </label>
       
-      <p style="color: var(--text-muted); font-size: 10px; margin-top: 8px;">
-        O Copilot envia respostas automaticamente quando o score de confiança está acima do limite.
-      </p>
+      ${!canEnable ? `<p style="color: #faad14; font-size: 10px; margin: -8px 0 12px 0;">⚠️ Score abaixo do limite necessário (${threshold}%)</p>` : ''}
+      
+      <label style="font-size: 11px; margin-bottom: 4px; display: block;">Limite de Confiança:</label>
+      <input type="range" id="copilotThreshold" min="50" max="100" value="${threshold}" style="width: 100%; margin-bottom: 4px;">
+      <div style="text-align: center; font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">
+        <span id="thresholdValue">${threshold}%</span>
+      </div>
+      
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+      
+      <h4 style="font-size: 12px; margin-bottom: 8px;">📈 Estatísticas</h4>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+        <div style="background: rgba(82,196,26,0.1); padding: 8px; border-radius: 4px; text-align: center;">
+          <div style="font-size: 18px; font-weight: 600; color: #52c41a;">${metrics.total_good || 0}</div>
+          <div style="font-size: 10px; color: var(--text-muted);">✅ Boas</div>
+        </div>
+        <div style="background: rgba(255,77,79,0.1); padding: 8px; border-radius: 4px; text-align: center;">
+          <div style="font-size: 18px; font-weight: 600; color: #ff4d4f;">${metrics.total_bad || 0}</div>
+          <div style="font-size: 10px; color: var(--text-muted);">❌ Ruins</div>
+        </div>
+        <div style="background: rgba(250,173,20,0.1); padding: 8px; border-radius: 4px; text-align: center;">
+          <div style="font-size: 18px; font-weight: 600; color: #faad14;">${metrics.total_corrections || 0}</div>
+          <div style="font-size: 10px; color: var(--text-muted);">✏️ Correções</div>
+        </div>
+        <div style="background: rgba(24,144,255,0.1); padding: 8px; border-radius: 4px; text-align: center;">
+          <div style="font-size: 18px; font-weight: 600; color: #1890ff;">${metrics.total_auto_sent || 0}</div>
+          <div style="font-size: 10px; color: var(--text-muted);">🤖 Auto-enviadas</div>
+        </div>
+      </div>
+      
+      <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; text-align: center; font-size: 11px;">
+        <strong>Status:</strong> ${config.copilot_enabled ? '<span style="color: #52c41a;">✅ Copilot Ativo</span>' : '<span style="color: var(--text-muted);">⏸️ Copilot Desativado</span>'}
+      </div>
+      
+      <div class="status" id="copilotStatus"></div>
     `;
+    
+    const enabledCheckbox = dropdown.querySelector('#copilotEnabled');
+    const thresholdSlider = dropdown.querySelector('#copilotThreshold');
+    const thresholdValue = dropdown.querySelector('#thresholdValue');
+    const statusDiv = dropdown.querySelector('#copilotStatus');
+    
+    if (enabledCheckbox) {
+      enabledCheckbox.addEventListener('change', async (e) => {
+        const enabled = e.target.checked;
+        try {
+          const resp = await bg('TOGGLE_COPILOT', { enabled });
+          if (resp?.ok) {
+            statusDiv.textContent = enabled ? '✅ Copilot ativado!' : '⏸️ Copilot desativado';
+            statusDiv.className = 'status ok';
+            setTimeout(() => {
+              statusDiv.className = 'status';
+              loadCopilotTab(dropdown);
+            }, 2000);
+          } else {
+            throw new Error(resp?.error || 'Falha ao alterar estado');
+          }
+        } catch (err) {
+          statusDiv.textContent = `❌ Erro: ${err.message}`;
+          statusDiv.className = 'status err';
+          e.target.checked = !enabled;
+        }
+      });
+    }
+    
+    if (thresholdSlider && thresholdValue) {
+      thresholdSlider.addEventListener('input', (e) => {
+        thresholdValue.textContent = `${e.target.value}%`;
+      });
+      
+      thresholdSlider.addEventListener('change', async (e) => {
+        const newThreshold = Number(e.target.value);
+        try {
+          const resp = await bg('SET_THRESHOLD', { threshold: newThreshold });
+          if (resp?.ok) {
+            statusDiv.textContent = `✅ Limite ajustado para ${newThreshold}%`;
+            statusDiv.className = 'status ok';
+            setTimeout(() => {
+              statusDiv.className = 'status';
+              loadCopilotTab(dropdown);
+            }, 2000);
+          } else {
+            throw new Error(resp?.error || 'Falha ao ajustar limite');
+          }
+        } catch (err) {
+          statusDiv.textContent = `❌ Erro: ${err.message}`;
+          statusDiv.className = 'status err';
+        }
+      });
+    }
   }
   
   async function loadTrainingTab(dropdown) {
-    dropdown.innerHTML = `
-      <h3>🧠 Treinamento IA</h3>
-      <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
-        Configure o conhecimento da IA. Para acesso completo, use a extensão popup.
-      </p>
-      
-      <label>🏢 Nome do Negócio:</label>
-      <input type="text" id="trainingBizName" placeholder="Minha Empresa">
-      
-      <label>📋 Descrição:</label>
-      <textarea id="trainingBizDesc" placeholder="Vendemos produtos de qualidade..." style="min-height: 60px;"></textarea>
-      
-      <label>🏪 Segmento:</label>
-      <input type="text" id="trainingBizSegment" placeholder="Ex: E-commerce, Restaurante">
-      
-      <label>⏰ Horário de Atendimento:</label>
-      <input type="text" id="trainingBizHours" placeholder="Ex: Seg-Sex 9h-18h">
-      
-      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
-      
-      <label>🗣️ Tom de Voz:</label>
-      <select id="trainingToneStyle">
-        <option value="formal">Formal</option>
-        <option value="informal">Informal</option>
-        <option value="professional">Profissional</option>
-        <option value="friendly">Amigável</option>
-      </select>
-      
-      <label style="display: flex; align-items: center; margin-top: 8px;">
-        <input type="checkbox" id="trainingUseEmojis">
-        <span>Usar Emojis nas respostas</span>
-      </label>
-      
-      <button id="saveTraining">💾 Salvar Configurações</button>
-      <button id="syncTraining" style="background: linear-gradient(135deg, #10b981, #059669);">🔄 Sincronizar</button>
-      <div class="status" id="trainingStatus"></div>
-      
-      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
-      
-      <p style="color: var(--text-muted); font-size: 10px;">
-        💡 <strong>Dica:</strong> Clique no ícone da extensão para acessar:
-        <br>• Catálogo de Produtos (CSV)
-        <br>• FAQ Completo
-        <br>• Políticas (Pagamento, Entrega, Trocas)
-        <br>• Upload de Documentos (PDF/TXT)
-        <br>• Testar IA
-        <br>• Estatísticas de Treinamento
-      </p>
-    `;
-    
     // Load existing knowledge
     const knowledge = await getKnowledge();
+    const products = knowledge.products || [];
+    const faqs = knowledge.faqs || [];
+    
+    dropdown.innerHTML = `
+      <h3>🧠 Treinamento IA</h3>
+      <div style="max-height: 400px; overflow-y: auto; padding-right: 4px;">
+        
+        <h4 style="font-size: 12px; margin: 12px 0 8px 0;">🏢 Sobre o Negócio</h4>
+        <label>Nome da Empresa:</label>
+        <input type="text" id="trainingBizName" placeholder="Minha Empresa">
+        
+        <label>Descrição:</label>
+        <textarea id="trainingBizDesc" placeholder="Vendemos produtos de qualidade..." style="min-height: 50px;"></textarea>
+        
+        <label>Segmento:</label>
+        <input type="text" id="trainingBizSegment" placeholder="Ex: E-commerce">
+        
+        <label>Horário de Atendimento:</label>
+        <input type="text" id="trainingBizHours" placeholder="Seg-Sex 9h-18h">
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+        
+        <h4 style="font-size: 12px; margin: 8px 0;">📦 Produtos (${products.length})</h4>
+        <div id="productsList" style="margin-bottom: 8px;"></div>
+        <input type="text" id="prodName" placeholder="Nome do Produto" style="margin-bottom: 4px;">
+        <input type="text" id="prodPrice" placeholder="Preço (ex: R$ 100)" style="margin-bottom: 4px;">
+        <textarea id="prodDesc" placeholder="Descrição" style="min-height: 40px; margin-bottom: 4px;"></textarea>
+        <button id="addProduct" style="font-size: 11px; padding: 6px;">Adicionar Produto</button>
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+        
+        <h4 style="font-size: 12px; margin: 8px 0;">❓ FAQ (${faqs.length})</h4>
+        <div id="faqsList" style="margin-bottom: 8px;"></div>
+        <input type="text" id="faqQuestion" placeholder="Pergunta" style="margin-bottom: 4px;">
+        <textarea id="faqAnswer" placeholder="Resposta" style="min-height: 40px; margin-bottom: 4px;"></textarea>
+        <button id="addFaq" style="font-size: 11px; padding: 6px;">Adicionar FAQ</button>
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+        
+        <h4 style="font-size: 12px; margin: 8px 0;">📋 Políticas</h4>
+        <label>Pagamento:</label>
+        <textarea id="policyPayment" placeholder="Aceitamos PIX, cartão..." style="min-height: 40px;"></textarea>
+        
+        <label>Entrega:</label>
+        <textarea id="policyDelivery" placeholder="Entregamos em todo Brasil..." style="min-height: 40px;"></textarea>
+        
+        <label>Trocas/Devoluções:</label>
+        <textarea id="policyReturns" placeholder="Até 7 dias..." style="min-height: 40px;"></textarea>
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+        
+        <h4 style="font-size: 12px; margin: 8px 0;">🗣️ Tom de Voz</h4>
+        <label>Estilo:</label>
+        <select id="trainingToneStyle">
+          <option value="formal">Formal</option>
+          <option value="informal">Informal</option>
+          <option value="professional">Profissional</option>
+          <option value="friendly">Amigável</option>
+        </select>
+        
+        <label style="display: flex; align-items: center; margin-top: 8px;">
+          <input type="checkbox" id="trainingUseEmojis">
+          <span>Usar Emojis</span>
+        </label>
+        
+        <label>Saudação Padrão:</label>
+        <input type="text" id="toneGreeting" placeholder="Olá! Como posso ajudar?">
+        
+        <label>Despedida Padrão:</label>
+        <input type="text" id="toneClosing" placeholder="Até logo!">
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
+        
+        <h4 style="font-size: 12px; margin: 8px 0;">📊 Estatísticas</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px;">
+          <div style="background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; text-align: center; font-size: 10px;">
+            <div style="font-size: 16px; font-weight: 600;">${products.length}</div>
+            <div style="color: var(--text-muted);">Produtos</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; text-align: center; font-size: 10px;">
+            <div style="font-size: 16px; font-weight: 600;">${faqs.length}</div>
+            <div style="color: var(--text-muted);">FAQs</div>
+          </div>
+        </div>
+        
+      </div>
+      
+      <div style="display: flex; gap: 6px; margin-top: 12px;">
+        <button id="saveTraining" style="flex: 1;">💾 Salvar</button>
+        <button id="syncTraining" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669);">🔄 Sync</button>
+      </div>
+      <div class="status" id="trainingStatus"></div>
+    `;
+    
+    // Populate fields
     dropdown.querySelector('#trainingBizName').value = knowledge.business?.name || '';
     dropdown.querySelector('#trainingBizDesc').value = knowledge.business?.description || '';
     dropdown.querySelector('#trainingBizSegment').value = knowledge.business?.segment || '';
     dropdown.querySelector('#trainingBizHours').value = knowledge.business?.hours || '';
+    dropdown.querySelector('#policyPayment').value = knowledge.policies?.payment || '';
+    dropdown.querySelector('#policyDelivery').value = knowledge.policies?.delivery || '';
+    dropdown.querySelector('#policyReturns').value = knowledge.policies?.returns || '';
     dropdown.querySelector('#trainingToneStyle').value = knowledge.tone?.style || 'informal';
     dropdown.querySelector('#trainingUseEmojis').checked = knowledge.tone?.useEmojis !== false;
+    dropdown.querySelector('#toneGreeting').value = knowledge.tone?.greeting || '';
+    dropdown.querySelector('#toneClosing').value = knowledge.tone?.closing || '';
+    
+    // Render products
+    async function renderProducts() {
+      const container = dropdown.querySelector('#productsList');
+      
+      // Get fresh data
+      const freshKnowledge = await getKnowledge();
+      const currentProducts = freshKnowledge.products || [];
+      
+      if (currentProducts.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted); font-size: 10px;">Nenhum produto</p>';
+      } else {
+        container.innerHTML = currentProducts.map((p, idx) => `
+          <div style="background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: flex-start; font-size: 10px;">
+            <div style="flex: 1;">
+              <strong>${p.name}</strong>
+              ${p.price ? `<span style="color: #52c41a;"> - ${p.price}</span>` : ''}
+              ${p.description ? `<div style="color: var(--text-muted); margin-top: 2px;">${p.description.substring(0, 50)}...</div>` : ''}
+            </div>
+            <button class="remove-prod" data-idx="${idx}" style="background: rgba(255,77,79,0.2); color: #ff4d4f; padding: 2px 6px; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">🗑️</button>
+          </div>
+        `).join('');
+        
+        container.querySelectorAll('.remove-prod').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const idx = parseInt(btn.dataset.idx);
+            
+            // Get fresh data before removing
+            const k = await getKnowledge();
+            const prods = k.products || [];
+            prods.splice(idx, 1);
+            k.products = prods;
+            await saveKnowledge(k);
+            await renderProducts();
+          });
+        });
+      }
+    }
+    
+    // Render FAQs
+    async function renderFaqs() {
+      const container = dropdown.querySelector('#faqsList');
+      
+      // Get fresh data
+      const freshKnowledge = await getKnowledge();
+      const currentFaqs = freshKnowledge.faqs || [];
+      
+      if (currentFaqs.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted); font-size: 10px;">Nenhuma FAQ</p>';
+      } else {
+        container.innerHTML = currentFaqs.map((f, idx) => `
+          <div style="background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: flex-start; font-size: 10px;">
+            <div style="flex: 1;">
+              <strong>${f.question}</strong>
+              <div style="color: var(--text-muted); margin-top: 2px;">${f.answer.substring(0, 50)}...</div>
+            </div>
+            <button class="remove-faq" data-idx="${idx}" style="background: rgba(255,77,79,0.2); color: #ff4d4f; padding: 2px 6px; border: none; border-radius: 3px; cursor: pointer; font-size: 9px;">🗑️</button>
+          </div>
+        `).join('');
+        
+        container.querySelectorAll('.remove-faq').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const idx = parseInt(btn.dataset.idx);
+            
+            // Get fresh data before removing
+            const k = await getKnowledge();
+            const fqs = k.faqs || [];
+            fqs.splice(idx, 1);
+            k.faqs = fqs;
+            await saveKnowledge(k);
+            await renderFaqs();
+          });
+        });
+      }
+    }
+    
+    await renderProducts();
+    await renderFaqs();
     
     const saveBtn = dropdown.querySelector('#saveTraining');
     const syncBtn = dropdown.querySelector('#syncTraining');
+    const addProductBtn = dropdown.querySelector('#addProduct');
+    const addFaqBtn = dropdown.querySelector('#addFaq');
     const statusDiv = dropdown.querySelector('#trainingStatus');
     
-    saveBtn.addEventListener('click', async () => {
-      const name = dropdown.querySelector('#trainingBizName').value.trim();
-      const description = dropdown.querySelector('#trainingBizDesc').value.trim();
-      const segment = dropdown.querySelector('#trainingBizSegment').value.trim();
-      const hours = dropdown.querySelector('#trainingBizHours').value.trim();
-      const style = dropdown.querySelector('#trainingToneStyle').value;
-      const useEmojis = dropdown.querySelector('#trainingUseEmojis').checked;
+    // Add product
+    addProductBtn.addEventListener('click', async () => {
+      const name = dropdown.querySelector('#prodName').value.trim();
+      const price = dropdown.querySelector('#prodPrice').value.trim();
+      const description = dropdown.querySelector('#prodDesc').value.trim();
       
+      if (!name) {
+        statusDiv.textContent = '❌ Digite o nome do produto';
+        statusDiv.className = 'status err';
+        return;
+      }
+      
+      // Get fresh data before adding
+      const k = await getKnowledge();
+      const prods = k.products || [];
+      prods.push({ id: `prod_${Date.now()}`, name, price, description });
+      k.products = prods;
+      await saveKnowledge(k);
+      
+      dropdown.querySelector('#prodName').value = '';
+      dropdown.querySelector('#prodPrice').value = '';
+      dropdown.querySelector('#prodDesc').value = '';
+      await renderProducts();
+      
+      statusDiv.textContent = '✅ Produto adicionado!';
+      statusDiv.className = 'status ok';
+      setTimeout(() => statusDiv.className = 'status', 2000);
+    });
+    
+    // Add FAQ
+    addFaqBtn.addEventListener('click', async () => {
+      const question = dropdown.querySelector('#faqQuestion').value.trim();
+      const answer = dropdown.querySelector('#faqAnswer').value.trim();
+      
+      if (!question || !answer) {
+        statusDiv.textContent = '❌ Preencha pergunta e resposta';
+        statusDiv.className = 'status err';
+        return;
+      }
+      
+      // Get fresh data before adding
+      const k = await getKnowledge();
+      const fqs = k.faqs || [];
+      fqs.push({ id: `faq_${Date.now()}`, question, answer });
+      k.faqs = fqs;
+      await saveKnowledge(k);
+      
+      dropdown.querySelector('#faqQuestion').value = '';
+      dropdown.querySelector('#faqAnswer').value = '';
+      await renderFaqs();
+      
+      statusDiv.textContent = '✅ FAQ adicionada!';
+      statusDiv.className = 'status ok';
+      setTimeout(() => statusDiv.className = 'status', 2000);
+    });
+    
+    // Save all
+    saveBtn.addEventListener('click', async () => {
       knowledge.business = {
-        ...(knowledge.business || {}),
-        name,
-        description,
-        segment,
-        hours
+        name: dropdown.querySelector('#trainingBizName').value.trim(),
+        description: dropdown.querySelector('#trainingBizDesc').value.trim(),
+        segment: dropdown.querySelector('#trainingBizSegment').value.trim(),
+        hours: dropdown.querySelector('#trainingBizHours').value.trim()
+      };
+      
+      knowledge.policies = {
+        payment: dropdown.querySelector('#policyPayment').value.trim(),
+        delivery: dropdown.querySelector('#policyDelivery').value.trim(),
+        returns: dropdown.querySelector('#policyReturns').value.trim()
       };
       
       knowledge.tone = {
-        ...(knowledge.tone || {}),
-        style,
-        useEmojis
+        style: dropdown.querySelector('#trainingToneStyle').value,
+        useEmojis: dropdown.querySelector('#trainingUseEmojis').checked,
+        greeting: dropdown.querySelector('#toneGreeting').value.trim(),
+        closing: dropdown.querySelector('#toneClosing').value.trim()
       };
       
       await saveKnowledge(knowledge);
@@ -5315,6 +5732,7 @@ ${transcript || '(não consegui ler mensagens)'}
       setTimeout(() => statusDiv.className = 'status', 3000);
     });
     
+    // Sync
     syncBtn.addEventListener('click', async () => {
       statusDiv.textContent = '🔄 Sincronizando...';
       statusDiv.className = 'status ok';
@@ -5322,12 +5740,7 @@ ${transcript || '(não consegui ler mensagens)'}
       
       try {
         const synced = await syncKnowledge(knowledge);
-        
-        if (synced !== knowledge) {
-          statusDiv.textContent = '✅ Sincronizado com servidor!';
-        } else {
-          statusDiv.textContent = '⚠️ Salvo localmente (servidor indisponível)';
-        }
+        statusDiv.textContent = synced !== knowledge ? '✅ Sincronizado!' : '⚠️ Salvo localmente';
         statusDiv.className = 'status ok';
       } catch (e) {
         statusDiv.textContent = `❌ Erro: ${e.message}`;
@@ -5341,44 +5754,75 @@ ${transcript || '(não consegui ler mensagens)'}
   async function loadCampaignsTab(dropdown) {
     dropdown.innerHTML = `
       <h3>📢 Campanhas</h3>
-      <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
-        Envie mensagens em massa. Para opções completas, use a extensão popup.
-      </p>
-      
-      <label>Nome da Campanha:</label>
-      <input type="text" id="campName" placeholder="Promoção Verão 2024">
-      
-      <label>Números (um por linha ou Nome,Número):</label>
-      <textarea id="campNumbers" placeholder="+5511999999999&#10;João Silva,+5511988888888" style="min-height: 80px;"></textarea>
-      
-      <label>Mensagem:</label>
-      <textarea id="campMessage" placeholder="Olá {{nome}}! Temos uma promoção especial..." style="min-height: 80px;"></textarea>
-      
-      <label>⏱️ Intervalo entre mensagens (segundos):</label>
-      <input type="number" id="campInterval" value="10" min="5" max="60">
-      
-      <button id="startCampaign">🚀 Iniciar Campanha</button>
-      <button id="viewHistory" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">📜 Ver Histórico</button>
-      <div class="status" id="campStatus"></div>
-      
-      <div id="campHistory" style="display: none; margin-top: 12px; max-height: 200px; overflow-y: auto;"></div>
-      
-      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 12px 0;">
-      
-      <p style="color: var(--text-muted); font-size: 10px;">
-        💡 <strong>Variáveis disponíveis:</strong>
-        <br>• {{nome}} - Nome do contato
-        <br>• {{numero}} - Número do contato
-        <br><br><strong>Formatos aceitos:</strong>
-        <br>• +5511999999999
-        <br>• Nome,+5511999999999
-      </p>
+      <div style="max-height: 400px; overflow-y: auto; padding-right: 4px;">
+        
+        <label>Nome da Campanha:</label>
+        <input type="text" id="campName" placeholder="Promoção Verão 2024">
+        
+        <label>Números (um por linha ou Nome,Número):</label>
+        <textarea id="campNumbers" placeholder="+5511999999999&#10;João Silva,+5511988888888" style="min-height: 70px;"></textarea>
+        
+        <label>Mensagem:</label>
+        <textarea id="campMessage" placeholder="Olá {{nome}}! Temos uma promoção especial..." style="min-height: 70px;"></textarea>
+        
+        <label>⏱️ Intervalo entre mensagens (segundos):</label>
+        <input type="number" id="campInterval" value="10" min="5" max="60">
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 8px 0;">
+        
+        <h4 style="font-size: 12px; margin: 8px 0;">📅 Agendamento</h4>
+        <label style="display: flex; align-items: center; margin-bottom: 6px;">
+          <input type="radio" name="scheduleType" id="sendNow" checked>
+          <span style="margin-left: 6px;">Enviar Agora</span>
+        </label>
+        <label style="display: flex; align-items: center; margin-bottom: 6px;">
+          <input type="radio" name="scheduleType" id="scheduleFor">
+          <span style="margin-left: 6px;">Agendar para:</span>
+        </label>
+        
+        <div id="scheduleFields" style="display: none; margin-left: 20px;">
+          <label style="font-size: 10px;">Data:</label>
+          <input type="date" id="scheduleDate" style="margin-bottom: 4px;">
+          <label style="font-size: 10px;">Hora:</label>
+          <input type="time" id="scheduleTime" style="margin-bottom: 4px;">
+        </div>
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 8px 0;">
+        
+        <div style="display: flex; gap: 6px;">
+          <button id="startCampaign" style="flex: 1;">🚀 Iniciar</button>
+          <button id="viewHistory" style="flex: 1; background: linear-gradient(135deg, #6366f1, #4f46e5);">📜 Histórico</button>
+        </div>
+        
+        <div class="status" id="campStatus"></div>
+        
+        <div id="campHistory" style="display: none; margin-top: 12px; max-height: 150px; overflow-y: auto;"></div>
+        
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 8px 0;">
+        
+        <p style="color: var(--text-muted); font-size: 10px;">
+          💡 <strong>Variáveis:</strong> {{nome}}, {{numero}}
+          <br><strong>Formatos:</strong> +5511999999999 ou Nome,+5511999999999
+        </p>
+        
+      </div>
     `;
     
     const startBtn = dropdown.querySelector('#startCampaign');
     const historyBtn = dropdown.querySelector('#viewHistory');
     const statusDiv = dropdown.querySelector('#campStatus');
     const historyDiv = dropdown.querySelector('#campHistory');
+    const sendNowRadio = dropdown.querySelector('#sendNow');
+    const scheduleRadio = dropdown.querySelector('#scheduleFor');
+    const scheduleFields = dropdown.querySelector('#scheduleFields');
+    
+    // Show/hide schedule fields
+    scheduleRadio.addEventListener('change', () => {
+      scheduleFields.style.display = scheduleRadio.checked ? 'block' : 'none';
+    });
+    sendNowRadio.addEventListener('change', () => {
+      scheduleFields.style.display = 'none';
+    });
     
     historyBtn.addEventListener('click', async () => {
       chrome.storage.local.get(['whl_campaign_history'], (result) => {
@@ -5387,13 +5831,12 @@ ${transcript || '(não consegui ler mensagens)'}
         if (history.length === 0) {
           historyDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 11px;">Nenhuma campanha no histórico.</p>';
         } else {
-          historyDiv.innerHTML = '<h4 style="font-size: 12px; margin-bottom: 8px;">Histórico de Campanhas</h4>' + 
-            history.map(h => `
-              <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; margin-bottom: 6px; font-size: 11px;">
+          historyDiv.innerHTML = '<h4 style="font-size: 12px; margin-bottom: 8px;">Últimas Campanhas</h4>' + 
+            history.slice(0, 20).map(h => `
+              <div style="background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; margin-bottom: 4px; font-size: 10px;">
                 <div><strong>${h.id || 'N/A'}</strong></div>
                 <div style="color: var(--text-muted);">${new Date(h.completedAt).toLocaleString('pt-BR')}</div>
                 <div>✅ ${h.stats?.success || 0} | ❌ ${h.stats?.failed || 0}</div>
-                <div style="font-size: 10px; opacity: 0.7;">${h.message}</div>
               </div>
             `).join('');
         }
@@ -5407,10 +5850,46 @@ ${transcript || '(não consegui ler mensagens)'}
       const numbers = dropdown.querySelector('#campNumbers').value.trim();
       const message = dropdown.querySelector('#campMessage').value.trim();
       const interval = parseInt(dropdown.querySelector('#campInterval').value) || 10;
+      const isScheduled = scheduleRadio.checked;
       
       if (!numbers || !message) {
         statusDiv.textContent = '❌ Preencha números e mensagem';
         statusDiv.className = 'status err';
+        return;
+      }
+      
+      // Check schedule fields if scheduling
+      if (isScheduled) {
+        const scheduleDate = dropdown.querySelector('#scheduleDate').value;
+        const scheduleTime = dropdown.querySelector('#scheduleTime').value;
+        
+        if (!scheduleDate || !scheduleTime) {
+          statusDiv.textContent = '❌ Preencha data e hora para agendar';
+          statusDiv.className = 'status err';
+          return;
+        }
+        
+        // TODO: Implement actual scheduling with chrome.alarms API
+        // For now, save to scheduled campaigns for manual execution
+        const scheduledFor = `${scheduleDate} ${scheduleTime}`;
+        const campaignData = {
+          id: name || `Campanha_${Date.now()}`,
+          message,
+          numbers,
+          interval,
+          scheduledFor,
+          status: 'scheduled',
+          createdAt: new Date().toISOString()
+        };
+        
+        chrome.storage.local.get(['scheduled_campaigns'], (res) => {
+          const scheduled = res.scheduled_campaigns || [];
+          scheduled.push(campaignData);
+          chrome.storage.local.set({ scheduled_campaigns: scheduled });
+        });
+        
+        statusDiv.textContent = `⏰ Campanha salva para execução em ${scheduleDate} às ${scheduleTime}. Use o popup para gerenciar campanhas agendadas.`;
+        statusDiv.className = 'status ok';
         return;
       }
       

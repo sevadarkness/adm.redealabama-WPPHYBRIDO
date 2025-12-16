@@ -654,7 +654,13 @@ async function sendToTeam() {
     });
     
     if (response.ok) {
-      setStatus(`✅ Enviado para ${selectedMembers.length} membro(s)!`, true);
+      // Mostrar resultados detalhados se disponíveis
+      if (response.results) {
+        const { success, failed } = response.results;
+        setStatus(`✅ Sucesso: ${success} | Falhas: ${failed} de ${selectedMembers.length} membro(s)`, success > 0);
+      } else {
+        setStatus(`✅ Enviado para ${selectedMembers.length} membro(s)!`, true);
+      }
       el("teamMessage").value = "";
       clearSelection();
       updateMessagePreview();

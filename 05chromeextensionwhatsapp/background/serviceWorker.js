@@ -601,13 +601,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             throw new Error("WhatsApp Web não está aberto. Abra uma aba do WhatsApp Web e tente novamente.");
           }
 
-          // Send to the first WhatsApp Web tab found
-          await chrome.tabs.sendMessage(tabs[0].id, {
+          // Send to the first WhatsApp Web tab found and wait for response
+          const response = await chrome.tabs.sendMessage(tabs[0].id, {
             type: "SEND_TEAM_MESSAGES",
             payload: { members, message, senderName }
           });
 
-          return ok(sendResponse, { ok: true, queued: members.length });
+          // Return the response from content script (with results)
+          return ok(sendResponse, response || { ok: true, queued: members.length });
         } catch (e) {
           return fail(sendResponse, e);
         }

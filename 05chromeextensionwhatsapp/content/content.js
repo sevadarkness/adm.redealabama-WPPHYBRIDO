@@ -213,85 +213,111 @@
       (async () => {
         try {
           const { members, message: msg, senderName } = message.payload;
-          if (!members || !Array.isArray(members) || !msg) {
-            console.error('[WHL] Invalid team message data');
+          
+          if (!members || !Array.isArray(members)) {
+            sendResponse({ ok: false, error: 'Lista de membros inválida' });
+            return;
+          }
+          
+          if (!msg) {
+            sendResponse({ ok: false, error: 'Mensagem vazia' });
             return;
           }
 
-          log('Sending team messages to', members.length, 'members');
+          log('Enviando mensagens para', members.length, 'membros da equipe');
           
-          // Convert team members to campaign-like entries
+          // Converter membros para formato de campanha
           const entries = members.map(m => ({
-            name: m.name,
-            number: m.phone,
-            vars: {}
+            name: m.name || '',
+            number: m.phone || '',
+            vars: { nome: m.name || '', numero: m.phone || '' }
           }));
 
-          // Execute as a campaign
-          await executeDomCampaignDirectly(entries, msg, null);
+          // Executar envio com resultados
+          const results = await executeDomCampaignDirectly(entries, msg, null);
+          
+          log('Resultados do envio:', results);
+          sendResponse({ ok: true, results });
           
         } catch (e) {
-          console.error('[WHL] Error sending team messages:', e);
+          console.error('[WHL] Erro ao enviar para equipe:', e);
+          sendResponse({ ok: false, error: e.message || String(e) });
         }
       })();
-      return true; // Keep channel open for async response
+      return true; // Manter canal aberto para resposta async
     }
   });
 
   // Helper function to execute campaign directly (used by scheduled campaigns)
   async function executeDomCampaignDirectly(entries, msg, mediaPayload) {
-    debugLog('Executing scheduled campaign with', entries.length, 'contacts');
+    debugLog('Executando campanha com', entries.length, 'contatos');
     
-    // Use default delays for scheduled campaigns
     const dmin = 8;
     const dmax = 15;
+    const results = { success: 0, failed: 0, errors: [] };
 
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i];
-      debugLog(`[${i+1}/${entries.length}] Processing scheduled:`, e.number);
+      debugLog(`[${i+1}/${entries.length}] Processando:`, e.number || e.name);
       
       const text = applyVars(msg || '', e).trim();
-      const phoneDigits = e.number.replace(/[^\d]/g, '');
+      const phoneDigits = (e.number || '').replace(/[^\d]/g, '');
+
+      if (!phoneDigits || phoneDigits.length < 8) {
+        debugLog('❌ Número inválido:', e.number);
+        results.failed++;
+        results.errors.push({ contact: e.number, error: 'Número inválido' });
+        continue;
+      }
 
       try {
-        debugLog('Opening chat...');
-        await openChatBySearch(phoneDigits);
+        // 1. Abrir chat com retry
+        await openChatBySearchWithRetry(phoneDigits);
         await sleep(500);
         
-        const composer = findComposer();
+        // 2. Verificar composer
+        const composer = await findElementWithRetry('composer', 10, 300);
         if (!composer) {
-          throw new Error('Composer not found');
+          throw new Error('Composer não encontrado após abrir chat');
         }
 
+        // 3. Enviar mídia ou texto
         if (mediaPayload) {
-          debugLog('Sending media...');
+          debugLog('Enviando mídia...');
           await attachMediaAndSend(mediaPayload, text);
           await sleep(500);
           recordMessageSent();
         } else {
-          if (!text) throw new Error('Empty message');
-          debugLog('Inserting text...');
+          if (!text) throw new Error('Mensagem vazia');
+          
+          debugLog('Inserindo texto...');
           await insertIntoComposer(text, false, true);
           await sleep(300);
+          
+          debugLog('Clicando enviar...');
           await clickSend(true);
           await sleep(500);
         }
 
-        debugLog(`✅ Success for ${e.number}`);
+        debugLog(`✅ Sucesso para ${e.number || e.name}`);
+        results.success++;
+        
       } catch (err) {
-        debugLog(`❌ Error for ${e.number}:`, err);
-        console.error(`[WHL] Error for ${e.number}:`, err);
+        debugLog(`❌ Erro para ${e.number || e.name}:`, err.message);
+        results.failed++;
+        results.errors.push({ contact: e.number || e.name, error: err.message });
       }
 
-      // Delay between messages
+      // Delay entre mensagens
       if (i < entries.length - 1) {
         const delay = (Math.random() * (dmax - dmin) + dmin) * 1000;
-        debugLog(`Waiting ${delay/1000}s...`);
+        debugLog(`Aguardando ${Math.round(delay/1000)}s...`);
         await sleep(delay);
       }
     }
 
-    debugLog('Scheduled campaign completed!');
+    debugLog('Campanha concluída:', results);
+    return results;
   }
 
   // -------------------------
@@ -300,79 +326,115 @@
   // WA_SELECTORS: Robust selectors with fallback for WhatsApp Web changes (updated 2024/2025)
   const WA_SELECTORS = {
     chatHeader: [
+      // 2024/2025 - Novos seletores
+      '[data-testid="conversation-info-header"]',
+      '[data-testid="conversation-header"]',
       'header span[title]',
       'header [title]',
       '#main header span[dir="auto"]',
+      'header._amid',
       'header',
-      '[data-testid="conversation-header"]',
       '#main header'
     ],
     composer: [
-      // New 2024/2025 selectors first (Lexical editor)
+      // 2024/2025 - Lexical editor (mais comum agora)
       '[data-testid="conversation-compose-box-input"]',
+      'div[contenteditable="true"][data-lexical-editor="true"]',
       'footer div[contenteditable="true"][data-lexical-editor="true"]',
       '[data-lexical-editor="true"]',
       'div[contenteditable="true"][data-tab="10"]',
-      // Legacy selectors
-      'footer [contenteditable="true"][role="textbox"]',
+      // Seletores por role
+      'footer div[role="textbox"][contenteditable="true"]',
       '#main footer div[contenteditable="true"]',
+      // Legacy
+      'footer [contenteditable="true"][role="textbox"]',
       'footer div[contenteditable="true"]',
-      '#main footer [contenteditable="true"]'
+      '#main footer [contenteditable="true"]',
+      // Fallback genérico
+      'div[contenteditable="true"][spellcheck="true"]'
     ],
     sendButton: [
+      // 2024/2025
       '[data-testid="compose-btn-send"]',
+      'button[data-testid="compose-btn-send"]',
       'footer button span[data-icon="send"]',
       'footer button span[data-icon="send-light"]',
-      'button span[data-icon="send"]',
+      'span[data-icon="send"]',
+      'span[data-icon="send-light"]',
+      // Por aria-label (PT e EN)
       'button[aria-label="Enviar"]',
       'button[aria-label="Send"]',
-      'footer button[data-testid="compose-btn-send"]',
-      'footer button[aria-label*="Enviar"]',
-      'footer button[aria-label*="Send"]'
+      'button[aria-label*="Enviar"]',
+      'button[aria-label*="Send"]',
+      // Fallback
+      'footer button[type="button"]:last-child'
     ],
     attachButton: [
+      '[data-testid="attach-menu-plus"]',
+      'span[data-icon="attach-menu-plus"]',
+      'span[data-icon="clip"]',
+      'span[data-icon="attach"]',
       'footer button[aria-label*="Anexar"]',
       'footer button[title*="Anexar"]',
-      'footer span[data-icon="attach-menu-plus"]',
-      'footer span[data-icon="clip"]',
-      'footer span[data-icon="attach"]'
+      'footer button[aria-label*="Attach"]'
     ],
     searchBox: [
-      // Novos seletores 2024/2025 - testados e funcionando
+      // 2024/2025 - Seletores atualizados
+      '[data-testid="chat-list-search"]',
+      '[data-testid="chat-list-search"] div[contenteditable="true"]',
       '[contenteditable="true"][data-tab="3"]',
       'div[role="textbox"][data-tab="3"]',
       '#side div[contenteditable="true"]',
+      // Por aria-label
       'div[aria-label="Caixa de texto de pesquisa"]',
       'div[aria-label="Search input textbox"]',
-      // Seletores antigos como fallback
-      '[data-testid="chat-list-search"]',
-      '[data-testid="chat-list-search"] div[contenteditable="true"]',
-      '#pane-side div[contenteditable="true"]'
+      'div[aria-label*="Pesquisar"]',
+      'div[aria-label*="Search"]',
+      // Fallback
+      '#pane-side div[contenteditable="true"]',
+      'aside div[contenteditable="true"]'
     ],
     searchResults: [
       '[data-testid="cell-frame-container"]',
+      '[data-testid="chat-list"] [data-testid="cell-frame-container"]',
       '#pane-side [role="listitem"]',
       '#pane-side [role="row"]',
-      '[data-testid="chat-list"] [role="row"]'
+      '[data-testid="chat-list"] [role="row"]',
+      '[data-testid="chat-list"] [role="listitem"]',
+      // Fallback
+      '#pane-side div[data-testid]'
     ],
     messagesContainer: [
       '[data-testid="conversation-panel-messages"]',
+      '[data-testid="conversation-panel"]',
       '#main div[role="application"]',
+      '#main div[role="region"]',
       '#main'
     ],
     messageNodes: [
       'div[data-pre-plain-text]',
-      '[data-testid="msg-container"]'
+      '[data-testid="msg-container"]',
+      'div.message-in',
+      'div.message-out'
     ],
     chatList: [
-      '#pane-side [role="row"]',
       '[data-testid="chat-list"] [role="row"]',
-      '[data-testid="chat-list"] [role="listitem"]'
+      '[data-testid="chat-list"] [role="listitem"]',
+      '#pane-side [role="row"]',
+      '#pane-side [role="listitem"]'
     ],
     dialogRoot: [
       'div[role="dialog"]',
       '[data-testid="media-viewer"]',
-      '[data-testid="popup"]'
+      '[data-testid="popup"]',
+      '[data-testid="modal"]'
+    ],
+    // NOVO: Seletor para novo chat
+    newChatButton: [
+      '[data-testid="chat-list-search-btn"]',
+      'span[data-icon="new-chat"]',
+      'button[aria-label*="Nova conversa"]',
+      'button[aria-label*="New chat"]'
     ]
   };
 
@@ -1002,6 +1064,132 @@
     
     debugLog('❌ Chat não abriu (composer não encontrado após 20 tentativas)');
     throw new Error('Chat não abriu (composer não encontrado).');
+  }
+
+  // Melhorar função de abrir chat com retry
+  async function openChatBySearchWithRetry(phoneDigits, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        debugLog(`Tentativa ${attempt}/${maxRetries} de abrir chat: ${phoneDigits}`);
+        await openChatBySearch(phoneDigits);
+        
+        // Verificar se realmente abriu (composer visível)
+        await sleep(500);
+        const composer = findComposer();
+        if (composer) {
+          debugLog('✅ Chat aberto com sucesso!');
+          return true;
+        }
+        
+        debugLog('⚠️ Composer não encontrado, tentando novamente...');
+      } catch (e) {
+        debugLog(`❌ Tentativa ${attempt} falhou:`, e.message);
+        if (attempt === maxRetries) throw e;
+        await sleep(1000);
+      }
+    }
+    throw new Error('Falha ao abrir chat após múltiplas tentativas');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // QUICK REPLIES - Detecção de /gatilho no WhatsApp
+  // ═══════════════════════════════════════════════════════════════════
+
+  let quickRepliesCache = [];
+  let quickRepliesLastLoad = 0;
+
+  async function loadQuickReplies() {
+    // Cache por 10 segundos
+    if (Date.now() - quickRepliesLastLoad < 10000 && quickRepliesCache.length) {
+      return quickRepliesCache;
+    }
+    
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['quickReplies'], (res) => {
+        quickRepliesCache = Array.isArray(res?.quickReplies) ? res.quickReplies : [];
+        quickRepliesLastLoad = Date.now();
+        resolve(quickRepliesCache);
+      });
+    });
+  }
+
+  function findQuickReplyMatch(text, quickReplies) {
+    if (!text || !text.startsWith('/')) return null;
+    
+    // Extrair o gatilho (texto após / até espaço ou fim)
+    const match = text.match(/^\/(\S+)/);
+    if (!match) return null;
+    
+    const trigger = match[1].toLowerCase();
+    
+    // Buscar match exato
+    const reply = quickReplies.find(qr => 
+      qr.trigger && qr.trigger.toLowerCase() === trigger
+    );
+    
+    return reply || null;
+  }
+
+  async function handleQuickReplyTrigger(composer) {
+    const text = (composer.textContent || composer.innerText || '').trim();
+    
+    if (!text.startsWith('/')) return false;
+    
+    const quickReplies = await loadQuickReplies();
+    if (!quickReplies.length) return false;
+    
+    const match = findQuickReplyMatch(text, quickReplies);
+    if (!match) return false;
+    
+    debugLog('Quick Reply encontrado:', match.trigger, '->', match.response?.slice(0, 30) + '...');
+    
+    // Substituir texto no composer
+    try {
+      composer.focus();
+      document.execCommand('selectAll', false, null);
+      document.execCommand('insertText', false, match.response);
+      composer.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      
+      debugLog('✅ Quick Reply aplicado!');
+      return true;
+    } catch (e) {
+      debugLog('❌ Erro ao aplicar Quick Reply:', e);
+      return false;
+    }
+  }
+
+  // Observar o composer para detectar /gatilho + Enter ou /gatilho + Tab
+  function setupQuickReplyListener() {
+    // Usar delegação de eventos no document
+    document.addEventListener('keydown', async (e) => {
+      // Detectar Enter ou Tab após /gatilho
+      if (e.key !== 'Enter' && e.key !== 'Tab') return;
+      
+      const composer = findComposer();
+      if (!composer) return;
+      
+      // Verificar se o foco está no composer
+      if (document.activeElement !== composer && !composer.contains(document.activeElement)) return;
+      
+      const text = (composer.textContent || composer.innerText || '').trim();
+      
+      // Só processar se começar com /
+      if (!text.startsWith('/')) return;
+      
+      // Verificar se é um gatilho válido (não contém espaços = gatilho puro)
+      if (text.includes(' ') && !text.match(/^\/\S+$/)) return;
+      
+      const quickReplies = await loadQuickReplies();
+      const match = findQuickReplyMatch(text, quickReplies);
+      
+      if (match) {
+        e.preventDefault();
+        e.stopPropagation();
+        await handleQuickReplyTrigger(composer);
+      }
+    }, true); // Capture phase para interceptar antes do WhatsApp
+    
+    debugLog('✅ Quick Reply listener configurado');
   }
 
   // -------------------------
@@ -2431,26 +2619,35 @@ ${transcript || '(não consegui ler mensagens)'}
       }
     }
 
-    function hookMessageObserver() {
-      // Observe message container changes
-      const container =
-        document.querySelector('[data-testid="conversation-panel-messages"]') ||
-        document.querySelector('#main') ||
-        null;
+    // Melhorar hookMessageObserver com retry
+    async function hookMessageObserverWithRetry(maxAttempts = 10) {
+      for (let i = 0; i < maxAttempts; i++) {
+        const container = findElement('messagesContainer');
+        
+        if (container) {
+          debugLog('✅ Container de mensagens encontrado, configurando observer');
+          
+          const obs = new MutationObserver(() => {
+            if (autoSuggestTimer) clearTimeout(autoSuggestTimer);
+            autoSuggestTimer = setTimeout(() => {
+              maybeAutoSuggest();
+            }, 1200);
+          });
 
-      if (!container) return;
-
-      const obs = new MutationObserver(() => {
-        if (autoSuggestTimer) clearTimeout(autoSuggestTimer);
-        autoSuggestTimer = setTimeout(() => {
-          maybeAutoSuggest();
-        }, 1200);
-      });
-
-      obs.observe(container, { childList: true, subtree: true });
+          obs.observe(container, { childList: true, subtree: true });
+          debugLog('✅ Auto-Suggest observer configurado');
+          return true;
+        }
+        
+        debugLog(`Tentativa ${i+1}/${maxAttempts}: Container não encontrado, aguardando...`);
+        await sleep(2000);
+      }
+      
+      debugLog('⚠️ Não foi possível configurar Auto-Suggest observer (container não encontrado)');
+      return false;
     }
 
-    hookMessageObserver();
+    hookMessageObserverWithRetry();
 
     // -------------------------
     // Campaigns
@@ -3839,6 +4036,9 @@ ${transcript || '(não consegui ler mensagens)'}
   function boot() {
     try {
       mount();
+      // Setup Quick Reply listener
+      setupQuickReplyListener();
+      debugLog('✅ Boot completed - Quick Reply listener active');
     } catch (e) {
       warn('Falha ao montar painel:', e);
     }

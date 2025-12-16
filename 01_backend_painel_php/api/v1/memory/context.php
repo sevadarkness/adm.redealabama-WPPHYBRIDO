@@ -70,15 +70,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
         
+        $contextJson = json_encode($data['context'], JSON_UNESCAPED_UNICODE);
+        
         $stmt = $pdo->prepare("
             INSERT INTO memory_context (workspace_key, context_data, updated_at)
             VALUES (:key, :data, NOW())
-            ON DUPLICATE KEY UPDATE context_data = :data, updated_at = NOW()
+            ON DUPLICATE KEY UPDATE context_data = VALUES(context_data), updated_at = NOW()
         ");
         
         $stmt->execute([
             ':key' => $workspaceKey,
-            ':data' => json_encode($data['context'], JSON_UNESCAPED_UNICODE),
+            ':data' => $contextJson,
         ]);
         
         echo json_encode([

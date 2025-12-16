@@ -124,13 +124,17 @@ try {
     $feedbackId = (int)$pdo->lastInsertId();
     
     // Log event for analytics
-    if (function_exists('log_app_event')) {
+    try {
         require_once __DIR__ . '/../../logger.php';
-        log_app_event('ai_feedback', 'feedback_received', [
-            'feedback_id' => $feedbackId,
-            'type' => $feedbackType,
-            'message_id' => $messageId,
-        ]);
+        if (function_exists('log_app_event')) {
+            log_app_event('ai_feedback', 'feedback_received', [
+                'feedback_id' => $feedbackId,
+                'type' => $feedbackType,
+                'message_id' => $messageId,
+            ]);
+        }
+    } catch (Throwable $e) {
+        // Logger not available, continue without logging
     }
     
     echo json_encode([

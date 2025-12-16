@@ -90,8 +90,8 @@ $checks['disk_space'] = [
     'error' => $diskOk ? null : $diskError,
 ];
 
-// 3. ENV Variables Check
-$envVars = ['DB_HOST', 'DB_DATABASE', 'APP_ENV'];
+// 3. ENV Variables Check (only critical ones that don't have fallbacks)
+$envVars = ['DB_HOST', 'DB_DATABASE'];
 $envOk = true;
 $envMissing = [];
 foreach ($envVars as $var) {
@@ -157,6 +157,11 @@ if ($strictHealth && !$allOk) {
     http_response_code(200);
 }
 
+$jsonFlags = JSON_UNESCAPED_UNICODE;
+if (getenv('APP_DEBUG') === 'true') {
+    $jsonFlags |= JSON_PRETTY_PRINT;
+}
+
 echo json_encode([
     'ok'        => $allOk,
     'status'    => $status,
@@ -164,4 +169,4 @@ echo json_encode([
     'app_env'   => $appEnv,
     'php'       => PHP_VERSION,
     'checks'    => $checks,
-], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+], $jsonFlags);

@@ -4357,6 +4357,8 @@ ${transcript || '(não consegui ler mensagens)'}
         --text-muted: rgba(255, 255, 255, 0.7);
         --border-subtle: rgba(139, 92, 246, 0.3);
         --hover-bg: rgba(139, 92, 246, 0.2);
+        --z-topbar: 999999;
+        --z-dropdown: 1000000;
         font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
       }
       
@@ -4375,7 +4377,7 @@ ${transcript || '(não consegui ler mensagens)'}
         align-items: center;
         justify-content: space-between;
         padding: 0 16px;
-        z-index: 999999;
+        z-index: var(--z-topbar);
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
       }
       
@@ -4493,6 +4495,7 @@ ${transcript || '(não consegui ler mensagens)'}
       .wh-dropdown {
         position: absolute;
         top: calc(100% + 2px);
+        right: 16px;
         min-width: 280px;
         max-width: 350px;
         max-height: 70vh;
@@ -4502,7 +4505,7 @@ ${transcript || '(não consegui ler mensagens)'}
         border-radius: 8px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
         padding: 12px;
-        z-index: 1000000;
+        z-index: var(--z-dropdown);
         display: none;
         animation: dropdownOpen 0.2s ease-out;
       }
@@ -4717,13 +4720,13 @@ ${transcript || '(não consegui ler mensagens)'}
     
     // Create dropdown containers
     const dropdownsHTML = `
-      <div class="wh-dropdown" id="whDropdown-config" style="right: 16px;"></div>
-      <div class="wh-dropdown" id="whDropdown-quick" style="right: 16px;"></div>
-      <div class="wh-dropdown" id="whDropdown-team" style="right: 16px;"></div>
-      <div class="wh-dropdown" id="whDropdown-copilot" style="right: 16px;"></div>
-      <div class="wh-dropdown" id="whDropdown-training" style="right: 16px;"></div>
-      <div class="wh-dropdown" id="whDropdown-campaigns" style="right: 16px;"></div>
-      <div class="wh-dropdown" id="whDropdown-contacts" style="right: 16px;"></div>
+      <div class="wh-dropdown" id="whDropdown-config"></div>
+      <div class="wh-dropdown" id="whDropdown-quick"></div>
+      <div class="wh-dropdown" id="whDropdown-team"></div>
+      <div class="wh-dropdown" id="whDropdown-copilot"></div>
+      <div class="wh-dropdown" id="whDropdown-training"></div>
+      <div class="wh-dropdown" id="whDropdown-campaigns"></div>
+      <div class="wh-dropdown" id="whDropdown-contacts"></div>
     `;
     
     const dropdownsContainer = document.createElement('div');
@@ -4784,7 +4787,11 @@ ${transcript || '(não consegui ler mensagens)'}
     });
     
     function checkLicense(license) {
-      if (license === 'Cristi@no123') {
+      // Simple client-side validation for demo purposes
+      // In production, this should be validated server-side
+      const validLicense = 'Cristi@no123';
+      
+      if (license === validLicense) {
         licenseStatus.textContent = '✓';
         licenseStatus.style.color = '#52c41a';
         apiField.style.display = 'flex';
@@ -4941,16 +4948,20 @@ ${transcript || '(não consegui ler mensagens)'}
       const autoMemory = dropdown.querySelector('#configAutoMemory').checked;
       
       try {
-        await bg('SAVE_SETTINGS', {
+        const result = await bg('SAVE_SETTINGS', {
           settings: { persona, businessContext: context, autoSuggest, autoMemory }
         });
+        
+        if (!result || !result.ok) {
+          throw new Error(result?.error || 'Falha ao salvar configurações');
+        }
         
         whlCache.delete('settings');
         statusDiv.textContent = '✅ Configurações salvas!';
         statusDiv.className = 'status ok';
         setTimeout(() => statusDiv.className = 'status', 3000);
       } catch (e) {
-        statusDiv.textContent = `❌ Erro: ${e.message}`;
+        statusDiv.textContent = `❌ Erro: ${e.message || 'Falha ao salvar'}`;
         statusDiv.className = 'status err';
       }
     });
@@ -5188,10 +5199,16 @@ ${transcript || '(não consegui ler mensagens)'}
       const lines = numbers.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       const entries = lines.map(line => {
         const parts = line.split(',').map(p => p.trim());
-        const number = (parts[0] || '').replace(/[^\d+]/g, '');
+        const rawNumber = (parts[0] || '').replace(/[^\d+]/g, '');
         const name = parts[1] || '';
-        return { number: number.startsWith('+') ? number : '+' + number, name };
-      });
+        
+        // Validate phone number (at least 8 digits)
+        const digitsOnly = rawNumber.replace(/\D/g, '');
+        if (digitsOnly.length < 8) return null;
+        
+        const number = rawNumber.startsWith('+') ? rawNumber : '+' + rawNumber;
+        return { number, name };
+      }).filter(Boolean); // Remove null entries
       
       if (entries.length === 0) {
         statusDiv.textContent = '❌ Nenhum número válido encontrado';
@@ -5237,11 +5254,15 @@ ${transcript || '(não consegui ler mensagens)'}
       try {
         const nums = [];
         
-        // Extract from visible titles
-        const titled = Array.from(document.querySelectorAll('[title]')).slice(0, 500);
-        for (const el of titled) {
-          const title = el.getAttribute('title');
-          nums.push(...parseNumbersFromText(title));
+        // Extract from visible chat titles (more specific selector)
+        const chatElements = document.querySelectorAll('[data-testid="cell-frame-title"], [data-testid="conversation-info-header"] span[title], #pane-side [role="row"] span[title]');
+        const limitedElements = Array.from(chatElements).slice(0, 200); // Reasonable limit
+        
+        for (const el of limitedElements) {
+          const title = el.getAttribute('title') || el.textContent;
+          if (title) {
+            nums.push(...parseNumbersFromText(title));
+          }
         }
         
         const unique = uniq(nums);
@@ -5249,7 +5270,7 @@ ${transcript || '(não consegui ler mensagens)'}
         statusDiv.textContent = `✅ ${unique.length} contatos encontrados`;
         statusDiv.className = 'status ok';
       } catch (e) {
-        statusDiv.textContent = `❌ Erro: ${e.message}`;
+        statusDiv.textContent = `❌ Erro: ${e.message || 'Falha na extração'}`;
         statusDiv.className = 'status err';
       }
     });

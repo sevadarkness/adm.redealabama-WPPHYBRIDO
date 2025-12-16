@@ -52,7 +52,7 @@ function validateApiKey(apiKey) {
 // FUNÇÕES DE NAVEGAÇÃO ENTRE TELAS
 // ═══════════════════════════════════════════════════════════════════
 
-function showScreen(screenId) {
+async function showScreen(screenId) {
   // Esconder todas as telas
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   
@@ -67,6 +67,14 @@ function showScreen(screenId) {
   if (btnReconfig) {
     if (screenId === "screenMain") {
       btnReconfig.classList.remove("hidden");
+      // Carregar configurações quando entrar na tela principal
+      if (typeof load === 'function') {
+        await load().catch((e) => {
+          if (typeof setStatus === 'function') {
+            setStatus(String(e?.message || e), false);
+          }
+        });
+      }
     } else {
       btnReconfig.classList.add("hidden");
     }
@@ -109,7 +117,7 @@ function setupLicenseListeners() {
         // Licença válida
         await chrome.storage.local.set({ licenseValid: true });
         errorEl.classList.add("hidden");
-        showScreen("screenApiKey");
+        await showScreen("screenApiKey");
       } else {
         // Licença inválida
         errorEl.classList.remove("hidden");
@@ -133,7 +141,7 @@ function setupLicenseListeners() {
         // API Key válida
         await chrome.storage.local.set({ openaiApiKey: apiKey });
         errorEl.classList.add("hidden");
-        showScreen("screenMain");
+        await showScreen("screenMain");
         
         // Mostrar status de sucesso se a função existir
         if (typeof setStatus === 'function') {
@@ -220,7 +228,7 @@ function setupLicenseListeners() {
       if (validateLicense(inputValue)) {
         document.getElementById("modalReconfig").classList.add("hidden");
         errorEl.classList.add("hidden");
-        showScreen("screenApiKey");
+        await showScreen("screenApiKey");
         
         // Preencher com API Key atual se existir
         const data = await chrome.storage.local.get(["openaiApiKey"]);
@@ -686,9 +694,13 @@ function escapeHtml(text) {
 // Initialize
 // -------------------------
 // Inicializar sistema de licença quando DOM estiver pronto
-document.addEventListener("DOMContentLoaded", () => {
-  initLicenseSystem();
+document.addEventListener("DOMContentLoaded", async () => {
+  await initLicenseSystem();
   setupLicenseListeners();
+  
+  // Só carregar configurações se já tiver licença e API key (screenMain)
+  const storage = await chrome.storage.local.get(["licenseValid", "openaiApiKey"]);
+  if (storage.licenseValid && storage.openaiApiKey) {
+    load().catch((e) => setStatus(String(e?.message || e), false));
+  }
 });
-
-load().catch((e) => setStatus(String(e?.message || e), false));

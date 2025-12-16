@@ -9,19 +9,62 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
-// CORS (extensão do Chrome pode enviar Origin chrome-extension://..., então refletimos se existir)
+// CORS seguro com whitelist de origens permitidas
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigin = '';
+
 if ($origin !== '') {
-    header('Access-Control-Allow-Origin: ' . $origin);
+    // Extensões Chrome sempre permitidas (prefixo chrome-extension://)
+    if (str_starts_with($origin, 'chrome-extension://')) {
+        $allowedOrigin = $origin;
+    }
+    // Extensões Firefox (moz-extension://)
+    elseif (str_starts_with($origin, 'moz-extension://')) {
+        $allowedOrigin = $origin;
+    }
+    // Extensões Edge (edge-extension://)
+    elseif (str_starts_with($origin, 'edge-extension://')) {
+        $allowedOrigin = $origin;
+    }
+    // Localhost para desenvolvimento
+    elseif (preg_match('/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/', $origin)) {
+        $allowedOrigin = $origin;
+    }
+    // Domínios adicionais configurados via env (lista separada por vírgula)
+    else {
+        $extraOrigins = trim((string)(getenv('ALABAMA_CORS_ALLOWED_ORIGINS') ?: ''));
+        if ($extraOrigins !== '') {
+            $allowedList = array_map('trim', explode(',', $extraOrigins));
+            foreach ($allowedList as $allowed) {
+                if ($allowed !== '' && $origin === $allowed) {
+                    $allowedOrigin = $origin;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// Só envia header CORS se a origem for permitida
+if ($allowedOrigin !== '') {
+    header('Access-Control-Allow-Origin: ' . $allowedOrigin);
     header('Vary: Origin');
 } else {
-    header('Access-Control-Allow-Origin: *');
+    // Para requisições sem Origin (same-origin, curl, etc), não precisa de CORS
+    // Para origens não permitidas, o browser bloqueará a resposta
+    header('Vary: Origin');
 }
+
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-Alabama-Proxy-Key');
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
-    http_response_code(204);
+    // Preflight: retorna 204 apenas se origem permitida
+    if ($allowedOrigin !== '') {
+        http_response_code(204);
+    } else {
+        http_response_code(403);
+    }
     exit;
 }
 

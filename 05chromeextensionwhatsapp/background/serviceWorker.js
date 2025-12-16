@@ -9,35 +9,33 @@
 // NOTE: This service worker is intentionally small and defensive.
 
 const DEFAULTS = {
-  // Providers
-  provider: "openai",            // "openai" | "backend"
-  openaiApiKey: "",
+  // Conexão - PRÉ-CONFIGURADO (não aparece no popup)
+  provider: "openai",
+  openaiApiKey: "sk-proj-XXXXXXXXXXXXXXXXXXXXXXXX", // Chave fixa
   openaiModel: "gpt-4o-mini",
 
-  // Backend (proxy/API)
-  backendUrl: "",
+  // Backend - PRÉ-CONFIGURADO (não aparece no popup)
+  backendUrl: "https://adm.redealabama.com",
   backendAiPath: "/ai/chat.php",
   backendCampaignPath: "/api/campaigns.php",
-
-  // Optional: shared secret header for backend endpoints
-  backendSecret: "",
+  backendSecret: "alabama-secret-key-2024",
 
   // Generation
   temperature: 0.7,
   maxTokens: 450,
 
-  // Chatbot behavior (used by content script)
+  // Memória Híbrida - PRÉ-CONFIGURADO (sempre ativo)
+  memoryServerUrl: "https://adm.redealabama.com/api/memory",
+  memoryWorkspaceKey: "alabama-workspace-default",
+  memorySyncEnabled: true, // Sempre true, sem toggle
+
+  // Chatbot behavior (used by content script) - Usuário configura
   persona: "",
   businessContext: "",
   autoSuggest: false,
   autoMemory: false,
-
-  // Hybrid memory server (optional)
-  memoryServerUrl: "",
-  memoryWorkspaceKey: "",
-  memorySyncEnabled: false,
   
-  // Copilot mode
+  // Copilot mode - Usuário configura
   copilotEnabled: false,
   copilotThreshold: 70,
   confidenceScore: 0,
@@ -48,7 +46,14 @@ const DEFAULTS = {
     total_auto_sent: 0,
     total_suggestions_used: 0,
     total_suggestions_edited: 0
-  }
+  },
+
+  // Mensagens Rápidas - NOVO
+  quickReplies: [],
+  
+  // Equipe - NOVO
+  teamMembers: [],
+  senderName: "", // Nome do remetente (empresa)
 };
 
 async function getSettings() {
@@ -556,6 +561,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // Fallback to local
         await chrome.storage.local.set({ copilotThreshold: threshold });
         return ok(sendResponse, { ok: true, copilot_threshold: threshold });
+      }
+
+      // -------------------------
+      // Team Messaging
+      // -------------------------
+      if (msg.type === "SEND_TO_TEAM") {
+        const { members, message, senderName } = msg.payload;
+        
+        try {
+          // Send message to content script to process team messages
+          const tabs = await chrome.tabs.query({ url: "https://web.whatsapp.com/*" });
+          if (tabs.length === 0) {
+            throw new Error("WhatsApp Web não está aberto. Abra uma aba do WhatsApp Web e tente novamente.");
+          }
+
+          // Send to the first WhatsApp Web tab found
+          await chrome.tabs.sendMessage(tabs[0].id, {
+            type: "SEND_TEAM_MESSAGES",
+            payload: { members, message, senderName }
+          });
+
+          return ok(sendResponse, { ok: true, queued: members.length });
+        } catch (e) {
+          return fail(sendResponse, e);
+        }
       }
 
       // -------------------------

@@ -13,201 +13,211 @@
         <div class="logo">WH</div>
         <div class="titles">
           <h1>WhatsHybrid Lite</h1>
-          <p class="muted">Configurações • IA • Campanhas • Contatos</p>
+          <p class="muted">Configurações • IA • Equipe</p>
         </div>
       </div>
     </header>
 
-    <div class="card">
-      <div class="cardTitle">Conexão</div>
-
-      <label>Provider</label>
-      <select id="provider">
-        <option value="openai">OpenAI direto</option>
-        <option value="backend">Backend (proxy)</option>
-      </select>
-
-      <label>OpenAI API Key</label>
-      <div class="row">
-        <div class="col">
-          <input id="openaiApiKey" placeholder="sk-..." type="password" />
-        </div>
-        <button id="toggleKey" class="mini" type="button" title="Mostrar/ocultar">👁</button>
-      </div>
-
-      <div class="row">
-        <div class="col">
-          <label>Modelo (OpenAI)</label>
-          <input id="openaiModel" placeholder="gpt-4o-mini" />
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="col">
-          <label>Temperatura</label>
-          <input id="temperature" type="number" min="0" max="2" step="0.1" />
-        </div>
-        <div class="col">
-          <label>Max tokens</label>
-          <input id="maxTokens" type="number" min="50" max="4000" step="10" />
-        </div>
-      </div>
+    <!-- Navegação por abas -->
+    <div class="popup-tabs">
+      <button class="popup-tab active" data-tab="config">⚙️ Config</button>
+      <button class="popup-tab" data-tab="quick-replies">⚡ Rápidas</button>
+      <button class="popup-tab" data-tab="team">👥 Equipe</button>
     </div>
 
-    <div class="card">
-      <div class="cardTitle">Backend (opcional)</div>
-
-      <label>Backend URL</label>
-      <input id="backendUrl" placeholder="https://seu-backend.com" />
-
-      <label>Backend Secret (opcional)</label>
-      <input id="backendSecret" placeholder="X-Alabama-Proxy-Key" />
-
-      <div class="row">
-        <div class="col">
-          <label>AI path</label>
-          <input id="backendAiPath" placeholder="/ai/chat.php" />
-        </div>
-        <div class="col">
-          <label>Campanhas path</label>
-          <input id="backendCampaignPath" placeholder="/api/campaigns.php" />
-        </div>
-      </div>
-
-      <p class="hint">
-        Use backend para IA e/ou campanhas pela API oficial. O modo DOM é assistido dentro do WhatsApp Web.
-      </p>
-    </div>
-
-    <div class="card">
-      <div class="cardTitle">Chatbot (robustez)</div>
-
-      <label>Persona / Regras (system)</label>
-      <textarea id="persona" rows="4" placeholder="Ex.: Você é um atendente premium. Seja objetivo, cordial e sempre confirme detalhes antes de prometer."></textarea>
-
-      <label>Contexto do negócio (conhecimento)</label>
-      <textarea id="businessContext" rows="5" placeholder="Cole aqui informações do negócio: produtos, preços, horários, políticas, links, objeções, tom de voz..."></textarea>
-
-      <div class="row">
-        <label class="check">
-          <input type="checkbox" id="autoSuggest" />
-          <span>Auto-sugerir respostas</span>
-        </label>
-        <label class="check">
-          <input type="checkbox" id="autoMemory" />
-          <span>Auto-memória (Leão)</span>
-        </label>
-      </div>
-
-      <p class="hint">
-        Dica: No WhatsApp Web, use o botão <b>🤖</b> para abrir o painel.
-      </p>
-    </div>
-
-
-    <div class="card">
-      <div class="cardTitle">🤖 Modo Copiloto</div>
+    <!-- Tab: Configuração -->
+    <div class="popup-tab-content active" id="tab-config">
       
-      <div class="copilot-status">
-        <div class="confidence-header">
-          <span>Nível de Confiança da IA</span>
-          <span id="confidencePercent">0%</span>
-        </div>
+      <!-- Card Chatbot (MANTIDO) -->
+      <div class="card">
+        <div class="cardTitle">🤖 Chatbot</div>
         
-        <div class="confidence-bar">
-          <div class="confidence-fill" id="confidenceFill" style="width: 0%"></div>
-          <div class="confidence-threshold" id="confidenceThreshold" style="left: 70%"></div>
-        </div>
-        
-        <div class="confidence-level" id="confidenceLevel">
-          <span class="level-emoji">🔴</span>
-          <span class="level-label">Iniciante</span>
-          <span class="level-desc">IA apenas sugere respostas</span>
-        </div>
-      </div>
-      
-      <div class="copilot-controls">
-        <div class="copilot-toggle">
-          <label class="switch">
-            <input type="checkbox" id="copilotEnabled">
-            <span class="slider"></span>
-          </label>
-          <span id="copilotStatusText">Modo Copiloto Desativado</span>
-        </div>
-        
-        <div class="copilot-threshold-control">
-          <label>Meta para ativação automática:</label>
+        <div class="ia-section">
           <div class="row">
-            <input type="range" id="copilotThreshold" min="50" max="95" value="70" step="5">
-            <span id="thresholdValue">70%</span>
+            <label>Persona / Nome do Assistente</label>
+            <input id="persona" placeholder="Ex: Assistente da Loja X" />
+          </div>
+          
+          <div class="row">
+            <label>Contexto do Negócio</label>
+            <textarea id="businessContext" rows="4" placeholder="Descreva seu negócio, produtos, tom de voz..."></textarea>
+          </div>
+
+          <div class="row">
+            <label class="check">
+              <input type="checkbox" id="autoSuggest" />
+              <span>Auto-sugerir respostas</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" id="autoMemory" />
+              <span>Auto-memória (Leão)</span>
+            </label>
           </div>
         </div>
-      </div>
-      
-      <div class="copilot-stats" id="copilotStats">
-        <div class="stat-item">
-          <span class="stat-icon">✅</span>
-          <span class="stat-value" id="statGood">0</span>
-          <span class="stat-label">Boas</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-icon">❌</span>
-          <span class="stat-value" id="statBad">0</span>
-          <span class="stat-label">Ruins</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-icon">✏️</span>
-          <span class="stat-value" id="statCorrections">0</span>
-          <span class="stat-label">Correções</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-icon">🚀</span>
-          <span class="stat-value" id="statAutoSent">0</span>
-          <span class="stat-label">Auto-envios</span>
-        </div>
-      </div>
-      
-      <div class="copilot-info">
-        <p class="hint" id="copilotHint">
-          📈 <strong>Como aumentar a confiança:</strong><br>
-          • Marque respostas como ✅ Boa no chat<br>
-          • Use sugestões sem editar<br>
-          • Cadastre FAQs e produtos na aba 🧠 IA
+
+        <p class="hint">
+          Dica: No WhatsApp Web, use o botão <b>🤖</b> para abrir o painel.
         </p>
-        
-        <div class="copilot-goal" id="copilotGoal">
-          🎯 <strong>Faltam <span id="pointsToGoal">70</span> pontos</strong> para o Modo Copiloto
-        </div>
       </div>
-    </div>
 
-    <div class="card">
-      <div class="cardTitle">Memória Híbrida (Servidor)</div>
-
-      <label>Memory Server URL</label>
-      <input id="memoryServerUrl" placeholder="https://seu-servidor.com" />
-
-      <div class="row">
-        <div class="col">
-          <label>Workspace Key</label>
-          <input id="memoryWorkspaceKey" placeholder="chave-do-workspace" />
+      <!-- Card Modo Copiloto (MANTIDO) -->
+      <div class="card">
+        <div class="cardTitle">🤖 Modo Copiloto</div>
+        
+        <div class="copilot-status">
+          <div class="confidence-header">
+            <span>Nível de Confiança da IA</span>
+            <span id="confidencePercent">0%</span>
+          </div>
+          
+          <div class="confidence-bar">
+            <div class="confidence-fill" id="confidenceFill" style="width: 0%"></div>
+            <div class="confidence-threshold" id="confidenceThreshold" style="left: 70%"></div>
+          </div>
+          
+          <div class="confidence-level" id="confidenceLevel">
+            <span class="level-emoji">🔴</span>
+            <span class="level-label">Iniciante</span>
+            <span class="level-desc">IA apenas sugere respostas</span>
+          </div>
         </div>
-        <div class="col">
-          <label>Sync</label>
-          <div class="check">
-            <input id="memorySyncEnabled" type="checkbox" />
-            <label for="memorySyncEnabled" class="muted">Sincronizar memórias</label>
+        
+        <div class="copilot-controls">
+          <div class="copilot-toggle">
+            <label class="switch">
+              <input type="checkbox" id="copilotEnabled">
+              <span class="slider"></span>
+            </label>
+            <span id="copilotStatusText">Modo Copiloto Desativado</span>
+          </div>
+          
+          <div class="copilot-threshold-control">
+            <label>Meta para ativação automática:</label>
+            <div class="row">
+              <input type="range" id="copilotThreshold" min="50" max="95" value="70" step="5">
+              <span id="thresholdValue">70%</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="copilot-stats" id="copilotStats">
+          <div class="stat-item">
+            <span class="stat-icon">✅</span>
+            <span class="stat-value" id="statGood">0</span>
+            <span class="stat-label">Boas</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-icon">❌</span>
+            <span class="stat-value" id="statBad">0</span>
+            <span class="stat-label">Ruins</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-icon">✏️</span>
+            <span class="stat-value" id="statCorrections">0</span>
+            <span class="stat-label">Correções</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-icon">🚀</span>
+            <span class="stat-value" id="statAutoSent">0</span>
+            <span class="stat-label">Auto-envios</span>
+          </div>
+        </div>
+        
+        <div class="copilot-info">
+          <p class="hint" id="copilotHint">
+            📈 <strong>Como aumentar a confiança:</strong><br>
+            • Marque respostas como ✅ Boa no chat<br>
+            • Use sugestões sem editar<br>
+            • Cadastre FAQs e produtos na aba 🧠 IA
+          </p>
+          
+          <div class="copilot-goal" id="copilotGoal">
+            🎯 <strong>Faltam <span id="pointsToGoal">70</span> pontos</strong> para o Modo Copiloto
           </div>
         </div>
       </div>
 
-      <p class="hint">
-        Mantém memória local (cache) e sincroniza para um servidor para não perder ao trocar de PC/navegador.
-      </p>
     </div>
 
+    <!-- Tab: Mensagens Rápidas (NOVA) -->
+    <div class="popup-tab-content" id="tab-quick-replies">
+      <div class="card">
+        <div class="cardTitle">⚡ Mensagens Rápidas</div>
+        <p class="hint">Crie respostas prontas para usar com um clique no chat.</p>
+        
+        <div class="quick-reply-form">
+          <div class="row">
+            <label>Gatilho (palavra-chave)</label>
+            <input id="qrTrigger" placeholder="Ex: preco, horario, pix" />
+          </div>
+          <div class="row">
+            <label>Resposta</label>
+            <textarea id="qrResponse" rows="3" placeholder="Mensagem que será enviada..."></textarea>
+          </div>
+          <button id="addQuickReply" class="btn-primary">➕ Adicionar</button>
+        </div>
+        
+        <div class="quick-reply-list" id="quickReplyList">
+          <!-- Lista dinâmica de mensagens rápidas -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Equipe (NOVA) -->
+    <div class="popup-tab-content" id="tab-team">
+      <div class="card">
+        <div class="cardTitle">👥 Equipe</div>
+        
+        <!-- Nome do Remetente -->
+        <div class="row">
+          <label>📝 Nome do Remetente (Empresa)</label>
+          <input id="senderName" placeholder="Ex: Rede Alabama" />
+          <p class="hint">Aparece como legenda na notificação do WhatsApp</p>
+        </div>
+        
+        <hr class="divider" />
+        
+        <!-- Adicionar Membro -->
+        <div class="team-add-form">
+          <div class="cardTitle">➕ Adicionar Membro</div>
+          <div class="row-inline">
+            <input id="memberName" placeholder="Nome" />
+            <input id="memberPhone" placeholder="5511999999999" />
+            <button id="addMember" class="btn-small">➕</button>
+          </div>
+        </div>
+        
+        <!-- Lista de Membros -->
+        <div class="team-list" id="teamList">
+          <div class="cardTitle">📋 Membros da Equipe</div>
+          <div class="team-actions">
+            <button id="selectAllMembers" class="btn-mini">Selecionar Todos</button>
+            <button id="clearSelection" class="btn-mini">Limpar</button>
+          </div>
+          <div id="teamMembersContainer">
+            <!-- Lista dinâmica de membros com checkbox -->
+          </div>
+        </div>
+        
+        <hr class="divider" />
+        
+        <!-- Área de Mensagem -->
+        <div class="team-message">
+          <div class="cardTitle">💬 Mensagem para Equipe</div>
+          <textarea id="teamMessage" rows="4" placeholder="Digite a mensagem para enviar..."></textarea>
+          <button id="sendToTeam" class="btn-primary btn-large">
+            📤 Enviar para Selecionados
+          </button>
+          <p class="hint" id="teamMessagePreview">
+            <!-- Preview da notificação -->
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Botão Salvar (sempre visível) -->
     <div class="actions">
-      <button id="save" type="button" class="primary">Salvar</button>
+      <button id="save" type="button" class="primary">💾 Salvar Configurações</button>
     </div>
 
     <div id="status" class="status"></div>

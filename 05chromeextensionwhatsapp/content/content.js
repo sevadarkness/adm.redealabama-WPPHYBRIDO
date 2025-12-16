@@ -1230,9 +1230,9 @@ ${transcript || '(não consegui ler mensagens)'}
       .badge.on{ display:flex; }
 
       .panel{
-        position:absolute;
-        right: 0;
-        top: 62px;
+        position:fixed;
+        right: 24px;
+        top: 142px;
         width: 388px;
         max-height: 74vh;
         overflow:auto;

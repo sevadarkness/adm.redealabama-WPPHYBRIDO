@@ -55,9 +55,13 @@ $pagina_inicial = match ($nivel) {
 // Pega a página atual
 $current_page = basename($_SERVER['PHP_SELF'] ?? '');
 ?>
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+<nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="<?php echo htmlspecialchars($pagina_inicial, ENT_QUOTES, 'UTF-8'); ?>">AlabamaCMS</a>
+        <a class="navbar-brand d-flex align-items-center gap-2" href="<?php echo htmlspecialchars($pagina_inicial, ENT_QUOTES, 'UTF-8'); ?>">
+            <i class="fas fa-gem" style="color: var(--al-primary);"></i>
+            <span style="font-weight: 800; background: linear-gradient(135deg, var(--al-primary), var(--al-accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Alabama</span>
+            <span style="font-weight: 400; color: var(--al-text-muted); font-size: 0.9rem;">CMS</span>
+        </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Alternar navegação">
             <span class="navbar-toggler-icon"></span>
         </button>
@@ -248,38 +252,57 @@ $current_page = basename($_SERVER['PHP_SELF'] ?? '');
 
 
 <style>
+    /* Nova Venda - Destaque especial */
     .nova-venda {
-        background-color: #28a745;
-        color: white;
-        font-weight: bold;
-        border-radius: 5px;
-        transition: all 0.3s ease-in-out;
+        background: linear-gradient(135deg, var(--al-success), #16a34a) !important;
+        color: white !important;
+        font-weight: 600 !important;
+        border-radius: var(--al-radius-md) !important;
+        transition: var(--al-transition) !important;
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3) !important;
     }
     .nova-venda:hover {
-        background-color: #218838;
-        text-decoration: none;
+        background: linear-gradient(135deg, var(--al-success-hover), var(--al-success)) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 16px rgba(34, 197, 94, 0.5) !important;
+        text-decoration: none !important;
     }
+    
+    /* Estilos do navbar já estão no alabama-theme.css, mas adicionamos override para garantir */
     .navbar-brand {
-        font-weight: bold;
-        font-size: 1.3rem;
-        color: #f1f1f1;
+        font-weight: 800;
+        font-size: 1.25rem;
+        color: var(--al-text-primary);
     }
+    
     .nav-item.active .nav-link {
-        background-color: #007bff;
-        color: white !important;
-        border-radius: 5px;
+        background: rgba(139, 92, 246, 0.15) !important;
+        color: var(--al-primary-hover) !important;
+        border-radius: var(--al-radius-sm) !important;
     }
+    
     .nav-link {
-        font-size: 1rem;
-        padding: 12px 18px;
+        font-size: 0.9375rem;
+        padding: 0.625rem 1rem;
+        border-radius: var(--al-radius-sm);
+        transition: var(--al-transition);
     }
-    /* Responsividade para o menu */
+    
+    .nav-link:hover {
+        background: rgba(139, 92, 246, 0.08);
+    }
+    
+    /* Responsividade */
     @media (max-width: 768px) {
         .navbar-nav {
             text-align: center;
+            gap: 0.5rem;
         }
         .dropdown-menu {
             text-align: center;
+        }
+        .nav-link {
+            margin: 0.25rem 0;
         }
     }
 </style>

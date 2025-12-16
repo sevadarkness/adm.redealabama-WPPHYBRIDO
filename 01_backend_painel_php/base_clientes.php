@@ -84,65 +84,30 @@ $total_paginas = ceil($total_clientes / $itens_por_pagina);
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <link rel="stylesheet" href="alabama-theme.css">
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Base de Clientes</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Base de Clientes - Rede Alabama</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/alabama-design-system.css">
+    <link rel="stylesheet" href="alabama-theme.css">
+    <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
     <style>
-        :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #3498db;
-        }
-
-        body {
-            background-color: #f8f9fa;
-        }
-
         .container {
             padding: 2rem 1rem;
             max-width: 1200px;
         }
 
-        .custom-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 1.5rem;
-            padding: 1.5rem;
-        }
-
         .table-responsive {
-            border-radius: 10px;
+            border-radius: var(--al-radius-lg);
             overflow: hidden;
-        }
-
-        .table thead th {
-            background-color: var(--primary-color);
-            color: white;
-            border-bottom: none;
-        }
-
-        .accordion-button {
-            padding: 0.5rem 1rem;
-            background-color: var(--secondary-color);
-            color: white;
-            border-radius: 5px;
-        }
-
-        .accordion-button:hover {
-            opacity: 0.9;
-        }
-
-        .alert-info {
-            background-color: #e8f4fc;
-            color: var(--primary-color);
         }
     </style>
 </head>
-<body>
+<body class="al-body">
 
 <div class="container">
     <div class="custom-card">
@@ -223,6 +188,6 @@ $total_paginas = ceil($total_clientes / $itens_por_pagina);
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

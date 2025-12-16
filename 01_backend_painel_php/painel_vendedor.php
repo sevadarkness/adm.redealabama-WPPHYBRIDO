@@ -88,92 +88,25 @@ $evolucao_vendas = $stmt_grafico->fetchAll();
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <link rel="stylesheet" href="alabama-theme.css">
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Vendedor</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <title>Painel Vendedor - Alabama CMS</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="alabama-theme.css">
+    <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root {
-            --primary-color: #4361ee;
-            --secondary-color: #3f37c9;
-            --light-bg: #f8f9fa;
-            --success-bg: #e8f5e9;
-        }
-
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system;
-            background-color: var(--light-bg);
-        }
-
-        .compact-card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            margin-bottom: 1rem;
-        }
-
-        .card-header {
-            background-color: var(--primary-color);
-            color: white;
-            border-radius: 12px 12px 0 0;
-            padding: 0.75rem 1rem;
-            font-size: 0.95rem;
-        }
-
-        .table-sm {
-            font-size: 0.85rem;
-        }
-
-        .scrollable-table {
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .total-badge {
-            background: rgba(67, 97, 238, 0.1);
-            color: var(--primary-color);
-            border-radius: 8px;
-            padding: 0.5rem;
-            font-weight: 500;
-        }
-
-        .filter-box {
-            background: white;
-            border-radius: 10px;
-            padding: 1rem;
-        }
-
-        .whatsapp-btn {
-            padding: 2px 6px;
-            font-size: 0.75rem;
-        }
-
+        /* Estilos específicos da página */
         .chart-container {
-            height: 300px;
+            height: 320px;
             position: relative;
         }
 
         @media (max-width: 768px) {
-            .scrollable-table {
-                max-height: 150px;
-            }
-            
-            .card-header {
-                font-size: 0.9rem;
-            }
-
             .chart-container {
                 height: 250px;
             }
-        }
-
-        /* Estilo para o fundo vermelho suave */
-        .bg-danger-light {
-            background-color: rgba(255, 0, 0, 0.1); /* Vermelho suave */
         }
     </style>
 </head>
@@ -192,12 +125,12 @@ $evolucao_vendas = $stmt_grafico->fetchAll();
         <!-- Seção Superior: Ganhos e Filtro -->
         <div class="row mb-2">
             <div class="col-12 mb-2">
-                <div class="compact-card" style="background-color: var(--success-bg);">
+                <div class="al-kpi-card">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <small class="text-muted">GANHOS ACUMULADOS</small>
-                                <h5 class="mb-0">R$ <?=number_format($comissao_vendedor, 2, ',', '.')?></h5>
+                                <div class="al-kpi-label mb-2">GANHOS ACUMULADOS</div>
+                                <div class="al-kpi-value" style="color: var(--al-success);">R$ <?=number_format($comissao_vendedor, 2, ',', '.')?></div>
                             </div>
                             <i class="fas fa-coins text-warning"></i>
                         </div>

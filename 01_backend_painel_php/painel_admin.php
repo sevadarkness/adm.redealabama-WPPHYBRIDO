@@ -28,7 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_user'])) {
     if ($nome === '' || $telefone === '' || $senha === '' || $nivel_acesso === '') {
         $erro_add = 'Preencha todos os campos para criar o usuário.';
     } else {
-        $hash = password_hash($senha, defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT);
+        $hash = password_hash(
+            $senha,
+            defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT
+        );
 
         $stmt = (new \RedeAlabama\Repositories\Screens\PainelAdminRepository($pdo))->prepare_1050();
         $stmt->execute([$nome, $telefone, $hash, $nivel_acesso]);
@@ -40,10 +43,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_user'])) {
         ]);
 
         if (function_exists('log_audit_event')) {
-            log_audit_event('usuario_create', 'usuario', (int)$pdo->lastInsertId(), [
-                'telefone' => $telefone,
-                'nivel_acesso' => $nivel_acesso,
-            ]);
+            log_audit_event(
+                'usuario_create',
+                'usuario',
+                (int)$pdo->lastInsertId(),
+                [
+                    'telefone'     => $telefone,
+                    'nivel_acesso' => $nivel_acesso,
+                ]
+            );
         }
 
         header('Location: painel_admin.php?user_created=1');
@@ -56,77 +64,77 @@ $stmt = (new \RedeAlabama\Repositories\Screens\PainelAdminRepository($pdo))->que
 $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
-<?php
-// ... (código PHP permanece inalterado)
-?>
-
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <link rel="stylesheet" href="alabama-theme.css">
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Administrativo</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <title>Painel Administrativo - Rede Alabama</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Vendor CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Alabama Design System -->
+    <link rel="stylesheet" href="assets/css/alabama-design-system.css">
+    <link rel="stylesheet" href="alabama-theme.css">
+    <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
+
+    <!-- Admin-specific tweaks (não conflitam com o DS) -->
     <style>
-        body {
-            background-color: #f8f9fa;
-        }
-        .admin-card {
-            background: white;
-            border-radius: 0.5rem;
-            box-shadow: 0 0.15rem 0.5rem rgba(0,0,0,.15);
-            margin-bottom: 1.5rem;
-            padding: 1.5rem;
-        }
-        .table-hover tbody tr:hover {
-            background-color: #f8f9fa;
-        }
         .action-buttons .btn {
-            margin: 0 3px;
+            margin: 0 0.25rem;
             min-width: 70px;
         }
     </style>
 </head>
-<body>
+
+<body class="al-body">
 
 <div class="container mt-4">
-    <div class="admin-card">
+    <div class="admin-card al-card al-card-elevated p-4">
+
         <?php if (isset($_GET['user_created'])): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="fas fa-check-circle"></i> Usuário criado com sucesso!
-                <button type="button" class="close" data-dismiss="alert">&times;</button>
+                <i class="fas fa-check-circle me-2"></i> Usuário criado com sucesso!
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
 
         <?php if (isset($_GET['user_deleted'])): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="fas fa-check-circle"></i> Usuário excluído com sucesso!
-                <button type="button" class="close" data-dismiss="alert">&times;</button>
+                <i class="fas fa-check-circle me-2"></i> Usuário excluído com sucesso!
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
 
         <?php if ($erro_add !== ''): ?>
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($erro_add, ENT_QUOTES, 'UTF-8'); ?>
-                <button type="button" class="close" data-dismiss="alert">&times;</button>
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <?= htmlspecialchars($erro_add, ENT_QUOTES, 'UTF-8'); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
 
-        <h3 class="text-primary mb-4">👋 Bem-vindo, <?php
-            // Padronização: o login seta "nome_usuario".
-            // Fallback: se o menu carregou o usuário do banco, usamos também.
-            $bemVindoNome = (string)($_SESSION['nome_usuario'] ?? ($usuario['nome'] ?? 'Usuário'));
-            echo htmlspecialchars($bemVindoNome, ENT_QUOTES, 'UTF-8');
-        ?>!</h3>
-        
+        <h3 class="text-primary mb-4">
+            👋 Bem-vindo,
+            <?php
+                $bemVindoNome = (string)($_SESSION['nome_usuario'] ?? ($usuario['nome'] ?? 'Usuário'));
+                echo htmlspecialchars($bemVindoNome, ENT_QUOTES, 'UTF-8');
+            ?>!
+        </h3>
+
         <h4 class="border-bottom pb-2 mb-4">📋 Gerenciamento de Usuários</h4>
 
         <div class="table-responsive">
-            <table class="table table-hover">
-                <thead class="bg-light">
+            <table class="table table-hover al-table">
+                <thead>
                     <tr>
                         <th>#ID</th>
                         <th>Nome</th>
@@ -136,95 +144,104 @@ $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($usuarios as $usuario): ?>
-                        <tr>
-                            <td class="text-muted"><?php echo (int)$usuario['id']; ?></td>
-                            <td><?php echo htmlspecialchars($usuario['nome'], ENT_QUOTES, 'UTF-8'); ?></td>
-                            <td><?php echo htmlspecialchars($usuario['telefone'], ENT_QUOTES, 'UTF-8'); ?></td>
-                            <td>
-                                <span class="badge badge-<?php echo $usuario['nivel_acesso'] === 'Administrador' ? 'primary' : 'secondary'; ?>">
-                                    <?php echo htmlspecialchars($usuario['nivel_acesso'], ENT_QUOTES, 'UTF-8'); ?>
-                                </span>
-                            </td>
-                            <td class="action-buttons text-center">
-                                <a href="editar_usuario.php?id=<?php echo $usuario['id']; ?>" 
-                                   class="btn btn-outline-warning btn-sm"
-                                   data-toggle="tooltip" title="Editar">
-                                   <i class="fas fa-edit"></i>
-                                </a>
-                                <form action="post_router.php" method="POST" class="d-inline">
-                                    <?= csrf_field(); ?>
-                                    <input type="hidden" name="_action" value="usuario.delete">
-                                    <input type="hidden" name="id" value="<?php echo (int)$usuario['id']; ?>">
-                                    <button type="submit"
-                                            class="btn btn-outline-danger btn-sm"
-                                            data-toggle="tooltip"
-                                            title="Excluir"
-                                            onclick="return confirm('Tem certeza que deseja excluir este usuário?');">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
+                <?php foreach ($usuarios as $usuario): ?>
+                    <tr>
+                        <td class="text-muted"><?= (int)$usuario['id']; ?></td>
+                        <td><?= htmlspecialchars($usuario['nome'], ENT_QUOTES, 'UTF-8'); ?></td>
+                        <td><?= htmlspecialchars($usuario['telefone'], ENT_QUOTES, 'UTF-8'); ?></td>
+                        <td>
+                            <span class="badge <?= $usuario['nivel_acesso'] === 'Administrador' ? 'al-badge-primary' : 'al-badge-secondary'; ?>">
+                                <?= htmlspecialchars($usuario['nivel_acesso'], ENT_QUOTES, 'UTF-8'); ?>
+                            </span>
+                        </td>
+                        <td class="action-buttons text-center">
+                            <a href="editar_usuario.php?id=<?= (int)$usuario['id']; ?>"
+                               class="btn btn-outline-warning btn-sm"
+                               data-bs-toggle="tooltip"
+                               title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </a>
+
+                            <form action="post_router.php" method="POST" class="d-inline">
+                                <?= csrf_field(); ?>
+                                <input type="hidden" name="_action" value="usuario.delete">
+                                <input type="hidden" name="id" value="<?= (int)$usuario['id']; ?>">
+                                <button type="submit"
+                                        class="btn btn-outline-danger btn-sm"
+                                        data-bs-toggle="tooltip"
+                                        title="Excluir"
+                                        onclick="return confirm('Tem certeza que deseja excluir este usuário?');">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
 
         <h4 class="border-bottom pb-2 mt-5 mb-4">➕ Adicionar Novo Usuário</h4>
+
         <form action="painel_admin.php" method="POST">
             <?= csrf_field(); ?>
-            <div class="row">
+
+            <div class="row g-3 mb-3">
                 <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="nome"><i class="fas fa-user"></i> Nome</label>
-                        <input type="text" class="form-control" id="nome" name="nome" required>
-                    </div>
+                    <label for="nome" class="form-label">
+                        <i class="fas fa-user me-1"></i> Nome
+                    </label>
+                    <input type="text" class="form-control" id="nome" name="nome" required>
                 </div>
+
                 <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="telefone"><i class="fas fa-phone"></i> Telefone</label>
-                        <input type="text" class="form-control" id="telefone" name="telefone" required>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="senha"><i class="fas fa-lock"></i> Senha</label>
-                        <input type="password" class="form-control" id="senha" name="senha" required>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <label for="nivel_acesso"><i class="fas fa-shield-alt"></i> Nível de Acesso</label>
-                        <select class="form-control" id="nivel_acesso" name="nivel_acesso" required>
-                            <option value="Gerente">Gerente</option>
-                            <option value="Vendedor">Vendedor</option>
-                        </select>
-                    </div>
+                    <label for="telefone" class="form-label">
+                        <i class="fas fa-phone me-1"></i> Telefone
+                    </label>
+                    <input type="text" class="form-control" id="telefone" name="telefone" required>
                 </div>
             </div>
-            
-            <button type="submit" name="add_user" class="btn btn-success btn-block">
-                <i class="fas fa-user-plus"></i> Adicionar Usuário
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <label for="senha" class="form-label">
+                        <i class="fas fa-lock me-1"></i> Senha
+                    </label>
+                    <input type="password" class="form-control" id="senha" name="senha" required>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="nivel_acesso" class="form-label">
+                        <i class="fas fa-shield-alt me-1"></i> Nível de Acesso
+                    </label>
+                    <select class="form-control" id="nivel_acesso" name="nivel_acesso" required>
+                        <option value="Gerente">Gerente</option>
+                        <option value="Vendedor">Vendedor</option>
+                    </select>
+                </div>
+            </div>
+
+            <button type="submit" name="add_user" class="btn btn-success w-100">
+                <i class="fas fa-user-plus me-2"></i> Adicionar Usuário
             </button>
         </form>
+
     </div>
 </div>
 
 <footer class="footer bg-dark text-center text-white py-3 mt-4">
-    <p class="mb-0">AlabamaCMS 1.1 &copy; <?php echo date("Y"); ?> - Todos os direitos reservados</p>
+    <p class="mb-0">
+        AlabamaCMS 1.1 &copy; <?= date("Y"); ?> — Todos os direitos reservados
+    </p>
 </footer>
 
-<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-<script <?php echo alabama_csp_nonce_attr(); ?>>
-    $(function () {
-        $('[data-toggle="tooltip"]').tooltip()
-    })
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script <?= alabama_csp_nonce_attr(); ?>>
+    document.addEventListener('DOMContentLoaded', function () {
+        document
+            .querySelectorAll('[data-bs-toggle="tooltip"]')
+            .forEach(el => new bootstrap.Tooltip(el));
+    });
 </script>
 
 </body>

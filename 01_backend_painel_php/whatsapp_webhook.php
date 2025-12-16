@@ -90,6 +90,10 @@ function whatsapp_validate_signature(string $payload, string $signature, string 
     if ($appSecret === '' || $signature === '') {
         return false;
     }
+    // Verifica formato 'sha256=' para prevenir bypass com assinaturas malformadas
+    if (strpos($signature, 'sha256=') !== 0) {
+        return false;
+    }
     $expected = 'sha256=' . hash_hmac('sha256', $payload, $appSecret);
     return hash_equals($expected, $signature);
 }
@@ -236,18 +240,21 @@ function whatsapp_build_history_for_llm(PDO $pdo, int $conversaId, int $limit = 
     }
 
     // Truncar se exceder limite de caracteres para prevenir crescimento descontrolado
+    // Otimizado: evita O(n²) de array_unshift usando construção reversa
     $totalChars = 0;
     $truncated = [];
-    foreach (array_reverse($history) as $msg) {
+    $reversed = array_reverse($history);
+    
+    foreach ($reversed as $msg) {
         $msgLen = strlen($msg['content']);
         if ($totalChars + $msgLen > $maxChars) {
             break;
         }
         $totalChars += $msgLen;
-        array_unshift($truncated, $msg);
+        $truncated[] = $msg;
     }
 
-    return $truncated;
+    return array_reverse($truncated);
 }
 
 
@@ -270,7 +277,7 @@ function whatsapp_message_already_processed(PDO $pdo, string $messageId): bool
         $stmt = $pdo->prepare($sql);
         $stmt->execute([':mid' => $messageId]);
         return $stmt->fetch() !== false;
-    } catch (Throwable $e) {
+    } catch (PDOException $e) {
         // Se a coluna não existe, ignora a verificação
         if (function_exists('log_app_event')) {
             log_app_event('whatsapp_bot', 'erro_verificar_idempotencia', ['erro' => $e->getMessage()]);

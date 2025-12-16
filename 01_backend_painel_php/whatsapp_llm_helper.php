@@ -197,9 +197,9 @@ PROMPT;
 function sanitize_llm_snippet(string $content): string
 {
     // Remove tentativas de escapar do contexto com marcadores de role (várias variações)
-    $content = preg_replace('/\b(system|assistant|user|role)\s*[:=]|<\|(system|assistant|user)/i', '[FILTERED]:', $content);
+    $content = preg_replace('/\b(system|assistant|user|role)\s*[:=]|<\|(system|assistant|user)|```\s*(system|assistant|user)/i', '[FILTERED]:', $content);
     // Remove delimitadores que podem quebrar o contexto
-    $content = str_replace(['```', '---'], '', $content);
+    $content = str_replace(['```', '---', '~~~'], '', $content);
     return trim($content);
 }
 

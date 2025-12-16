@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════╗
  * ║   REDE ALABAMA - API de Conhecimento/Treinamento de IA                    ║

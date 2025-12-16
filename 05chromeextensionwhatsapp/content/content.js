@@ -194,13 +194,16 @@
       'footer span[data-icon="attach"]'
     ],
     searchBox: [
+      // Novos seletores 2024/2025 - testados e funcionando
+      '[contenteditable="true"][data-tab="3"]',
+      'div[role="textbox"][data-tab="3"]',
+      '#side div[contenteditable="true"]',
+      'div[aria-label="Caixa de texto de pesquisa"]',
+      'div[aria-label="Search input textbox"]',
+      // Seletores antigos como fallback
       '[data-testid="chat-list-search"]',
       '[data-testid="chat-list-search"] div[contenteditable="true"]',
-      '#pane-side div[contenteditable="true"]',
-      'div[data-testid="search-container"] div[contenteditable="true"]',
-      '[data-testid="chat-list-search"] [contenteditable="true"]',
-      '#pane-side [contenteditable="true"][role="textbox"]',
-      '[data-testid="chat-list-search"] [role="textbox"]'
+      '#pane-side div[contenteditable="true"]'
     ],
     searchResults: [
       '[data-testid="cell-frame-container"]',

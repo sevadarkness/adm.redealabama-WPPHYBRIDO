@@ -461,13 +461,21 @@
     return findElement('composer');
   }
 
-  async function insertIntoComposer(text) {
+  async function insertIntoComposer(text, useStealthMode = false) {
     const box = findComposer();
     if (!box) throw new Error('Não encontrei a caixa de mensagem do WhatsApp.');
-    box.focus();
-
+    
     const t = safeText(text);
 
+    // Use modo stealth se habilitado
+    if (useStealthMode) {
+      await humanType(box, t);
+      return true;
+    }
+
+    // Modo normal (rápido)
+    box.focus();
+    
     // Try execCommand first
     try {
       document.execCommand('selectAll', false, null);
@@ -494,10 +502,26 @@
     return null;
   }
 
-  async function clickSend() {
+  async function clickSend(useStealthMode = false) {
     const btn = findSendButton();
     if (!btn) throw new Error('Não encontrei o botão ENVIAR.');
+    
+    // Adicionar delay antes de enviar se stealth mode
+    if (useStealthMode) {
+      const delay = randomBetween(
+        STEALTH_CONFIG.beforeSendDelayMin,
+        STEALTH_CONFIG.beforeSendDelayMax
+      );
+      await sleep(delay);
+    }
+    
     btn.click();
+    
+    // Registrar envio para rate limiting
+    if (useStealthMode) {
+      recordMessageSent();
+    }
+    
     return true;
   }
 
@@ -567,7 +591,7 @@
     return btn;
   }
 
-  async function attachMediaAndSend(mediaPayload, captionText) {
+  async function attachMediaAndSend(mediaPayload, captionText, useStealthMode = false) {
     if (!mediaPayload?.base64) throw new Error('Mídia não carregada.');
     const attachBtn = findAttachButton();
     if (!attachBtn) throw new Error('Não encontrei o botão de anexo (📎).');
@@ -601,19 +625,34 @@
     if (cap) {
       const box = findMediaCaptionBox();
       if (box) {
-        box.focus();
-        try {
-          document.execCommand('selectAll', false, null);
-          document.execCommand('insertText', false, cap);
-          box.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        } catch (_) {
-          box.textContent = cap;
-          box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        if (useStealthMode) {
+          await humanType(box, cap);
+        } else {
+          box.focus();
+          try {
+            document.execCommand('selectAll', false, null);
+            document.execCommand('insertText', false, cap);
+            box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+          } catch (_) {
+            box.textContent = cap;
+            box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+          }
         }
       }
     }
 
-    await sleep(120);
+    // Delay antes de enviar se stealth mode
+    if (useStealthMode) {
+      const delay = randomBetween(
+        STEALTH_CONFIG.beforeSendDelayMin,
+        STEALTH_CONFIG.beforeSendDelayMax
+      );
+      await sleep(delay);
+      recordMessageSent();
+    } else {
+      await sleep(120);
+    }
+    
     sendBtn.click();
     await sleep(900);
     return true;
@@ -1758,6 +1797,41 @@ ${transcript || '(não consegui ler mensagens)'}
       }
     }
 
+    campResumeBtn.addEventListener('click', async () => {
+      try {
+        const state = await loadCampaignState();
+        if (!state) throw new Error('Nenhuma campanha para retomar');
+        
+        campResumeStatus.textContent = 'Modo DOM desativado. Não é possível retomar campanhas DOM.';
+        campResumeStatus.classList.add('err');
+        
+        /* QUANDO DOM MODE ESTIVER HABILITADO:
+        // Restaurar configuração da UI
+        campMsg.value = state.config.message;
+        campDelayMin.value = state.config.delayMin;
+        campDelayMax.value = state.config.delayMax;
+        
+        if (state.config.media) {
+          campMediaPayload = state.config.media;
+        }
+        
+        // Reconstruir lista de contatos pendentes
+        const pendingContacts = state.contacts
+          .filter(c => c.status === 'pending')
+          .map(c => `${c.number}${c.name ? ',' + c.name : ''}`)
+          .join('\n');
+        campNumbers.value = pendingContacts;
+        
+        // Executar a partir do ponto onde parou
+        const entries = parseCampaignLines(pendingContacts);
+        await executeDomCampaign(entries, state.config.message, state);
+        */
+      } catch (e) {
+        campResumeStatus.textContent = `Erro: ${e?.message || String(e)}`;
+        campResumeStatus.classList.add('err');
+      }
+    });
+
     campClearBtn.addEventListener('click', async () => {
       try {
         await clearCampaignState();
@@ -1936,24 +2010,90 @@ ${transcript || '(não consegui ler mensagens)'}
       }
     }
 
-    async function executeDomCampaign(entries, msg) {
+    async function executeDomCampaign(entries, msg, resumeState = null) {
       throw new Error('Modo DOM de campanha desativado nesta build. Use Campanha (API) com WhatsApp oficial ou Links (assistido).');
 
+      /* ENHANCED VERSION WITH STEALTH & PERSISTENCE (disabled for now)
       const dmin = clamp(campDelayMin.value || 6, 1, 120);
       const dmax = clamp(campDelayMax.value || 12, 1, 240);
+      const useStealthMode = true; // Sempre usar stealth em campanhas
+
+      // Criar ou retomar estado da campanha
+      const campaignId = resumeState?.id || `camp_${Date.now()}`;
+      const startIndex = resumeState?.progress?.currentIndex || 0;
+      
+      const contacts = entries.map((e, idx) => ({
+        number: e.number,
+        name: e.name || '',
+        status: idx < startIndex ? 'sent' : 'pending'
+      }));
+
+      let campaignState = resumeState || {
+        id: campaignId,
+        status: 'running',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        config: {
+          message: msg,
+          media: campMediaPayload ? {
+            name: campMediaPayload.name,
+            type: campMediaPayload.type,
+            base64: campMediaPayload.base64
+          } : null,
+          delayMin: dmin,
+          delayMax: dmax,
+          mode: 'dom'
+        },
+        contacts: contacts,
+        progress: {
+          total: entries.length,
+          sent: startIndex,
+          failed: 0,
+          pending: entries.length - startIndex,
+          currentIndex: startIndex
+        },
+        errors: []
+      };
 
       campRun.running = true;
       campRun.paused = false;
       campRun.abort = false;
-      campRun.cursor = 0;
+      campRun.cursor = startIndex;
       campRun.total = entries.length;
 
-      setCampDomStatus(`Iniciando IA executora: ${entries.length} contatos…`, 'ok');
+      // Salvar estado inicial
+      await saveCampaignState(campaignState);
 
-      for (let i = 0; i < entries.length; i++) {
+      setCampDomStatus(`Iniciando campanha: ${entries.length} contatos (stealth mode)…`, 'ok');
+
+      for (let i = startIndex; i < entries.length; i++) {
         if (campRun.abort) break;
+        
+        // Salvar estado antes de pausar
+        if (campRun.paused) {
+          campaignState.status = 'paused';
+          campaignState.updatedAt = new Date().toISOString();
+          await saveCampaignState(campaignState);
+        }
+        
         await waitWhilePaused();
         if (campRun.abort) break;
+
+        // Verificar horário humano
+        if (!isHumanHour()) {
+          setCampDomStatus(`Fora do horário permitido. Pausando até ${STEALTH_CONFIG.humanHoursStart}h...`, 'ok');
+          campRun.paused = true;
+          campaignState.status = 'paused';
+          await saveCampaignState(campaignState);
+          await waitWhilePaused();
+        }
+
+        // Verificar rate limit
+        if (!checkRateLimit()) {
+          setCampDomStatus('Rate limit atingido. Aguardando...', 'ok');
+          await sleep(300000); // 5 minutos
+          continue;
+        }
 
         const e = entries[i];
         const text = applyVars(msg || '', e).trim();
@@ -1962,37 +2102,78 @@ ${transcript || '(não consegui ler mensagens)'}
         try {
           setCampDomStatus(`(${i+1}/${entries.length}) Abrindo ${e.number}…`, 'ok');
 
+          // Pausa aleatória longa ocasional
+          await maybeRandomLongPause();
+
           // Abre o chat dentro da mesma aba (busca lateral)
           await openChatBySearch(phoneDigits);
-          await sleep(350);
+          await sleep(randomBetween(300, 600));
 
           if (campMediaPayload) {
-            // Envia mídia + legenda (mensagem)
-            await attachMediaAndSend(campMediaPayload, text);
+            // Envia mídia + legenda (mensagem) com stealth
+            await attachMediaAndSend(campMediaPayload, text, useStealthMode);
           } else {
             if (!text) throw new Error('Mensagem vazia (e sem mídia).');
-            await insertIntoComposer(text);
-            await sleep(120);
-            await clickSend();
+            await insertIntoComposer(text, useStealthMode);
+            await sleep(randomBetween(100, 300));
+            await clickSend(useStealthMode);
           }
+
+          // Atualizar estado: sucesso
+          campaignState.contacts[i].status = 'sent';
+          campaignState.progress.sent++;
+          campaignState.progress.pending--;
+          campaignState.progress.currentIndex = i + 1;
 
           setCampDomStatus(`Enviado ✅ (${i+1}/${entries.length}) para ${e.number}`, 'ok');
         } catch (err) {
-          setCampDomStatus(`Falha (${i+1}/${entries.length}) em ${e.number}: ${err?.message || String(err)}`, 'err');
+          // Atualizar estado: falha
+          const errorMsg = err?.message || String(err);
+          campaignState.contacts[i].status = 'failed';
+          campaignState.contacts[i].error = errorMsg;
+          campaignState.progress.failed++;
+          campaignState.progress.pending--;
+          campaignState.progress.currentIndex = i + 1;
+          campaignState.errors.push({
+            contact: e.number,
+            error: errorMsg,
+            at: new Date().toISOString()
+          });
+
+          setCampDomStatus(`Falha (${i+1}/${entries.length}) em ${e.number}: ${errorMsg}`, 'err');
         } finally {
           campRun.cursor = i + 1;
+          campaignState.updatedAt = new Date().toISOString();
+          await saveCampaignState(campaignState);
         }
 
-        const delay = (Math.random() * (dmax - dmin) + dmin) * 1000;
-        await sleep(delay);
+        // Delay randomizado com variação
+        const baseDelay = (Math.random() * (dmax - dmin) + dmin) * 1000;
+        const finalDelay = randomizedDelay(baseDelay);
+        await sleep(finalDelay);
       }
 
       campRun.running = false;
       campRun.paused = false;
       campPauseBtn.textContent = 'Pausar';
 
+      // Finalizar campanha
+      campaignState.status = campRun.abort ? 'failed' : 'completed';
+      campaignState.updatedAt = new Date().toISOString();
+      await saveCampaignState(campaignState);
+      
+      // Adicionar ao histórico se completada
+      if (campaignState.status === 'completed') {
+        await saveCampaignToHistory(campaignState);
+      }
+
+      // Limpar estado ativo
+      await clearCampaignState();
+      campResumeBox.style.display = 'none';
+
       if (campRun.abort) setCampDomStatus('Campanha interrompida.', 'err');
-      else setCampDomStatus('Campanha concluída ✅', 'ok');
+      else setCampDomStatus(`Campanha concluída ✅ (${campaignState.progress.sent} enviadas, ${campaignState.progress.failed} falhas)`, 'ok');
+      */
     }
 
     campStartBtn.addEventListener('click', async () => {

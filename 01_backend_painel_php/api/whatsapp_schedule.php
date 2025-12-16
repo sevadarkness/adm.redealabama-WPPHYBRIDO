@@ -63,11 +63,14 @@ try {
             respond(['error' => ['code' => 'missing_schedule', 'message' => 'Data/hora de agendamento é obrigatória']], 400);
         }
         
-        // Validate date format
+        // Validate date format - try multiple formats
         $scheduledDateTime = DateTime::createFromFormat('Y-m-d\TH:i', $scheduledAt);
         if (!$scheduledDateTime) {
-            // Try alternative format
-            $scheduledDateTime = DateTime::createFromFormat('Y-m-d H:i:s', $scheduledAt);
+            // Try alternative formats
+            $scheduledDateTime = DateTime::createFromFormat('Y-m-d H:i', $scheduledAt);
+        }
+        if (!$scheduledDateTime) {
+            $scheduledDateTime = DateTime::createFromFormat('Y-m-d\TH:i:s', $scheduledAt);
         }
         
         if (!$scheduledDateTime) {

@@ -141,7 +141,8 @@ el("btnAgendar")?.addEventListener("click", async () => {
       el("scheduleMensagem").value = "";
       el("scheduleDateTime").value = "";
     } else {
-      setScheduleStatus("❌ " + (result.error?.message || "Falha ao agendar"), false);
+      const errorMsg = result.error && result.error.message ? result.error.message : "Falha ao agendar";
+      setScheduleStatus("❌ " + errorMsg, false);
     }
   } catch (e) {
     setScheduleStatus("❌ Erro de conexão: " + String(e?.message || e), false);
@@ -200,7 +201,8 @@ el("btnTreinar")?.addEventListener("click", async () => {
       el("trainingTitle").value = "";
       el("trainingContent").value = "";
     } else {
-      setTrainingStatus("❌ " + (result.error?.message || "Falha ao adicionar"), false);
+      const errorMsg = result.error && result.error.message ? result.error.message : "Falha ao adicionar";
+      setTrainingStatus("❌ " + errorMsg, false);
     }
   } catch (e) {
     setTrainingStatus("❌ Erro de conexão: " + String(e?.message || e), false);

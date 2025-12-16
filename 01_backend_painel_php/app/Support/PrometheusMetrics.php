@@ -20,6 +20,7 @@ final class PrometheusMetrics
      *  [
      *    'counters'  => [ metric_name => [ key => ['labels'=>[], 'value'=>float] ] ],
      *    'summaries' => [ metric_name => [ key => ['labels'=>[], 'sum'=>float, 'count'=>int] ] ],
+     *    'gauges'    => [ metric_name => [ key => ['labels'=>[], 'value'=>float] ] ],
      *  ]
      *
      * @var array<string,mixed>
@@ -27,6 +28,7 @@ final class PrometheusMetrics
     private array $data = [
         'counters'  => [],
         'summaries' => [],
+        'gauges'    => [],
     ];
 
     private string $storageFile;
@@ -59,7 +61,7 @@ final class PrometheusMetrics
                 $data = json_decode($json, true);
                 if (is_array($data)) {
                     $this->data = array_merge(
-                        ['counters' => [], 'summaries' => []],
+                        ['counters' => [], 'summaries' => [], 'gauges' => []],
                         $data
                     );
                 }
@@ -127,6 +129,16 @@ final class PrometheusMetrics
         $this->persist();
     }
 
+    public function setGauge(string $name, float $value, array $labels = []): void
+    {
+        $key = $this->keyFromLabels($labels);
+        $this->data['gauges'][$name][$key] = [
+            'labels' => $labels,
+            'value'  => $value,
+        ];
+        $this->persist();
+    }
+
     private function formatLabels(array $labels): string
     {
         if (!$labels) {
@@ -170,6 +182,17 @@ final class PrometheusMetrics
                 $count  = $sample['count'];
                 echo $name . '_sum' . $labels . ' ' . $sum . "\n";
                 echo $name . '_count' . $labels . ' ' . $count . "\n";
+            }
+            echo "\n";
+        }
+
+        // Gauges
+        foreach ($this->data['gauges'] as $name => $samples) {
+            echo "# TYPE {$name} gauge\n";
+            foreach ($samples as $sample) {
+                $labels = $this->formatLabels($sample['labels']);
+                $value  = $sample['value'];
+                echo $name . $labels . ' ' . $value . "\n";
             }
             echo "\n";
         }

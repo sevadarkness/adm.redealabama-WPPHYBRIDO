@@ -136,6 +136,18 @@ try {
             $toE164 = $item['to_phone_e164'] ?? $item['to_e164'] ?? '';
 
             try {
+                // Idempotency check: verify if message already sent
+                $checkSent = $pdo->prepare("
+                    SELECT 1 FROM whatsapp_bulk_log 
+                    WHERE bulk_job_id = :job_id AND item_id = :item_id AND status = 'sent'
+                    LIMIT 1
+                ");
+                $checkSent->execute([':job_id' => $jobId, ':item_id' => $itemId]);
+                if ($checkSent->fetch()) {
+                    echo "[whatsapp_bulk_worker] Item {$itemId} já foi enviado (idempotência). Pulando..." . PHP_EOL;
+                    continue;
+                }
+
                 $ok = true;
                 $result = null;
 
@@ -168,6 +180,36 @@ try {
                         WHERE id = :job_id
                     ");
                     $stmtUpdateJob->execute([':job_id' => $jobId]);
+
+                    // Register in bulk log for idempotency
+                    try {
+                        $pdo->exec("
+                            CREATE TABLE IF NOT EXISTS whatsapp_bulk_log (
+                                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                                bulk_job_id INT NOT NULL,
+                                item_id INT NOT NULL,
+                                to_phone VARCHAR(32) NOT NULL,
+                                status VARCHAR(32) NOT NULL,
+                                enviado_em DATETIME NOT NULL,
+                                UNIQUE KEY uq_job_item (bulk_job_id, item_id),
+                                INDEX idx_bulk_job (bulk_job_id),
+                                INDEX idx_enviado_em (enviado_em)
+                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                        ");
+                    } catch (PDOException $e) {
+                        // Table already exists, ignore
+                    }
+
+                    $stmtLog = $pdo->prepare("
+                        INSERT INTO whatsapp_bulk_log (bulk_job_id, item_id, to_phone, status, enviado_em)
+                        VALUES (:job_id, :item_id, :to_phone, 'sent', NOW())
+                        ON DUPLICATE KEY UPDATE status = 'sent', enviado_em = NOW()
+                    ");
+                    $stmtLog->execute([
+                        ':job_id' => $jobId,
+                        ':item_id' => $itemId,
+                        ':to_phone' => $toE164,
+                    ]);
 
                     log_app_event('whatsapp_bulk', 'item_sent', [
                         'job_id'   => $jobId,

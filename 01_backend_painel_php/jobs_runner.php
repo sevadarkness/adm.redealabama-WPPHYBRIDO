@@ -9,6 +9,26 @@
 
 declare(strict_types=1);
 
+// Anti-duplication lock: prevent multiple instances from running simultaneously
+$lockFile = sys_get_temp_dir() . '/jobs_runner.lock';
+$lockHandle = fopen($lockFile, 'w');
+if ($lockHandle === false) {
+    echo "[jobs_runner] Erro ao criar arquivo de lock." . PHP_EOL;
+    exit(1);
+}
+if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    fclose($lockHandle);
+    echo "[jobs_runner] Outra instância já está rodando." . PHP_EOL;
+    exit(0);
+}
+register_shutdown_function(function() use ($lockHandle, $lockFile) {
+    if (is_resource($lockHandle)) {
+        flock($lockHandle, LOCK_UN);
+        fclose($lockHandle);
+    }
+    @unlink($lockFile);
+});
+
 $autoload = __DIR__ . '/vendor/autoload.php';
 if (is_file($autoload)) {
     require_once $autoload;

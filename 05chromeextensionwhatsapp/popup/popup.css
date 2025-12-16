@@ -404,3 +404,281 @@ input:disabled + .slider {
   background: linear-gradient(135deg, rgba(34,197,94,.15), rgba(22,163,74,.15));
   border-color: rgba(34,197,94,.3);
 }
+
+/* Tab Navigation */
+.popup-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: rgba(5,7,15,0.5);
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.popup-tab {
+  flex: 1;
+  padding: 10px 8px;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.popup-tab:hover {
+  color: #ccc;
+  background: rgba(255,255,255,0.05);
+}
+
+.popup-tab.active {
+  background: linear-gradient(135deg, rgba(139,92,246,0.2), rgba(59,130,246,0.2));
+  color: #fff;
+}
+
+.popup-tab-content {
+  display: none;
+}
+
+.popup-tab-content.active {
+  display: block;
+}
+
+/* IA Section Formatting Fix */
+.ia-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ia-section .row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ia-section label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ccc;
+}
+
+.ia-section input,
+.ia-section textarea {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(5,7,15,0.5);
+  color: #fff;
+  font-size: 13px;
+}
+
+.ia-section textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* Quick Replies */
+.quick-reply-form {
+  background: rgba(5,7,15,0.3);
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.quick-reply-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.quick-reply-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.qr-trigger {
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.qr-response {
+  flex: 1;
+  font-size: 12px;
+  color: #aaa;
+  line-height: 1.4;
+}
+
+.btn-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  font-size: 16px;
+}
+
+.btn-delete:hover {
+  opacity: 1;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, rgba(139,92,246,.95), rgba(59,130,246,.95));
+  border: 1px solid rgba(255,255,255,.18);
+  font-weight: 700;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  width: 100%;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 20px;
+  font-size: 12px;
+}
+
+/* Team Styles */
+.divider {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  margin: 16px 0;
+}
+
+.team-add-form {
+  background: rgba(5,7,15,0.3);
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.row-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.row-inline input {
+  flex: 1;
+}
+
+.btn-small {
+  padding: 9px 16px;
+  font-size: 14px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn-small:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+.team-list {
+  margin-bottom: 16px;
+}
+
+.team-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.btn-mini {
+  padding: 6px 12px;
+  font-size: 11px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.btn-mini:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+.team-member-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  transition: all 0.2s;
+}
+
+.team-member-item.selected {
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.checkbox-container input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #8b5cf6;
+  cursor: pointer;
+}
+
+.member-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.member-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.member-phone {
+  font-size: 11px;
+  color: #888;
+}
+
+.team-message textarea {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.btn-large {
+  width: 100%;
+  padding: 14px;
+  font-size: 14px;
+}
+
+#teamMessagePreview {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 10px;
+  font-size: 12px;
+}

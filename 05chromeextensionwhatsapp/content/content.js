@@ -183,6 +183,34 @@
       })();
       return true; // Keep channel open for async response
     }
+
+    if (message.type === 'SEND_TEAM_MESSAGES') {
+      (async () => {
+        try {
+          const { members, message: msg, senderName } = message.payload;
+          if (!members || !Array.isArray(members) || !msg) {
+            console.error('[WHL] Invalid team message data');
+            return;
+          }
+
+          log('Sending team messages to', members.length, 'members');
+          
+          // Convert team members to campaign-like entries
+          const entries = members.map(m => ({
+            name: m.name,
+            number: m.phone,
+            vars: {}
+          }));
+
+          // Execute as a campaign
+          await executeDomCampaignDirectly(entries, msg, null);
+          
+        } catch (e) {
+          console.error('[WHL] Error sending team messages:', e);
+        }
+      })();
+      return true; // Keep channel open for async response
+    }
   });
 
   // Helper function to execute campaign directly (used by scheduled campaigns)

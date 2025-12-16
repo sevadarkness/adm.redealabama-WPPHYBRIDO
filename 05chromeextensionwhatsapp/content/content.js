@@ -32,6 +32,72 @@
     return (x === undefined || x === null) ? '' : String(x);
   }
 
+  // -------------------------
+  // Sistema de Cache Inteligente
+  // -------------------------
+  class SmartCache {
+    constructor(defaultTTL = 60000) { // 1 minuto padrão
+      this.cache = new Map();
+      this.defaultTTL = defaultTTL;
+    }
+    
+    set(key, value, ttl = this.defaultTTL) {
+      this.cache.set(key, {
+        value,
+        expiresAt: Date.now() + ttl
+      });
+    }
+    
+    get(key) {
+      const item = this.cache.get(key);
+      if (!item) return null;
+      if (Date.now() > item.expiresAt) {
+        this.cache.delete(key);
+        return null;
+      }
+      return item.value;
+    }
+    
+    has(key) {
+      return this.get(key) !== null;
+    }
+    
+    delete(key) {
+      this.cache.delete(key);
+    }
+    
+    clear() {
+      this.cache.clear();
+    }
+    
+    // Limpar expirados periodicamente
+    cleanup() {
+      const now = Date.now();
+      for (const [key, item] of this.cache.entries()) {
+        if (now > item.expiresAt) {
+          this.cache.delete(key);
+        }
+      }
+    }
+  }
+
+  // Instância global de cache
+  const whlCache = new SmartCache();
+
+  // Cleanup automático a cada 2 minutos
+  setInterval(() => whlCache.cleanup(), 120000);
+
+  // Hash simples para cache keys
+  function hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash.toString(36);
+  }
+
   function clamp(n, min, max) {
     n = Number(n);
     if (!Number.isFinite(n)) return min;
@@ -63,16 +129,14 @@
   }
 
   async function getSettingsCached() {
-    // Simple in-memory cache with short TTL.
-    const now = Date.now();
-    if (getSettingsCached._cache && (now - getSettingsCached._cacheAt) < 5000) {
-      return getSettingsCached._cache;
-    }
+    // Use SmartCache system with 5 second TTL
+    const cached = whlCache.get('settings');
+    if (cached) return cached;
+    
     const resp = await bg('GET_SETTINGS', {});
-    const st = resp?.settings || {};
-    getSettingsCached._cache = st;
-    getSettingsCached._cacheAt = now;
-    return st;
+    const settings = resp?.settings || {};
+    whlCache.set('settings', settings, 5000);
+    return settings;
   }
 
   // -------------------------
@@ -103,6 +167,263 @@
   });
 
   injectMainWorld();
+
+  // -------------------------
+  // Sistema de Seletores com Fallback
+  // -------------------------
+  const WA_SELECTORS = {
+    // Caixa de composição de mensagem
+    composer: [
+      'footer [contenteditable="true"][role="textbox"]',
+      '[data-testid="conversation-compose-box-input"]',
+      'div[data-tab="10"][contenteditable="true"]',
+      '#main footer [contenteditable="true"]',
+      'footer div[contenteditable="true"]'
+    ],
+    
+    // Botão enviar
+    sendButton: [
+      'footer button[data-testid="compose-btn-send"]',
+      'footer button span[data-icon="send"]',
+      'footer button span[data-icon="send-light"]',
+      'footer button[aria-label*="Enviar"]',
+      'footer button[aria-label*="Send"]'
+    ],
+    
+    // Botão de anexo
+    attachButton: [
+      'footer button[aria-label*="Anexar"]',
+      'footer button[title*="Anexar"]',
+      'footer span[data-icon="attach-menu-plus"]',
+      'footer span[data-icon="clip"]',
+      'footer span[data-icon="attach"]',
+      'footer button[aria-label*="Attach"]'
+    ],
+    
+    // Input de arquivo
+    fileInput: [
+      'input[type="file"][accept*="image"]',
+      'input[type="file"][accept*="video"]',
+      'input[type="file"]'
+    ],
+    
+    // Caixa de busca de chats
+    searchBox: [
+      '[data-testid="chat-list-search"] [contenteditable="true"]',
+      '[data-testid="chat-list-search"] [role="textbox"]',
+      '#pane-side [contenteditable="true"][role="textbox"]',
+      'div[data-testid="search-container"] [contenteditable="true"]'
+    ],
+    
+    // Resultados de busca
+    searchResults: [
+      '#pane-side [role="row"]',
+      '[data-testid="chat-list"] [role="row"]',
+      '[data-testid="chat-list"] [role="listitem"]',
+      '#pane-side [role="listitem"]'
+    ],
+    
+    // Preview de mídia (dialog)
+    mediaDialog: [
+      'div[role="dialog"]',
+      '[data-testid="media-viewer"]',
+      '[data-testid="popup"]'
+    ],
+    
+    // Botão enviar na preview de mídia
+    mediaSendButton: [
+      'div[role="dialog"] button[aria-label*="Enviar"]',
+      'div[role="dialog"] button span[data-icon="send"]',
+      '[data-testid="media-viewer"] button[aria-label*="Send"]'
+    ],
+    
+    // Caption na preview de mídia
+    mediaCaptionBox: [
+      'div[role="dialog"] [contenteditable="true"][role="textbox"]',
+      'div[role="dialog"] div[contenteditable="true"][data-tab]'
+    ],
+    
+    // Título do chat atual
+    chatHeader: [
+      'header span[title]',
+      'header [title]',
+      '#main header span[dir="auto"]'
+    ],
+    
+    // Container de mensagens
+    messagesContainer: [
+      '[data-testid="conversation-panel-messages"]',
+      '#main div[role="application"]',
+      '#main'
+    ],
+    
+    // Indicadores de erro/bloqueio
+    errorIndicators: [
+      '[data-testid="alert-notification"]',
+      'div[data-animate-modal-popup="true"]',
+      '[data-testid="popup-contents"]'
+    ]
+  };
+
+  // Função para encontrar elemento com fallback
+  function findElement(selectorKey, parent = document) {
+    const selectors = WA_SELECTORS[selectorKey];
+    if (!selectors) {
+      warn(`Selector key não encontrado: ${selectorKey}`);
+      return null;
+    }
+    
+    for (const sel of selectors) {
+      try {
+        const el = parent.querySelector(sel);
+        if (el && el.isConnected) {
+          // Verificar se é visível
+          if (el.offsetWidth || el.offsetHeight || el.getClientRects().length) {
+            return el;
+          }
+        }
+      } catch (e) {
+        // Seletor inválido, tentar próximo
+      }
+    }
+    return null;
+  }
+
+  // Função para encontrar múltiplos elementos
+  function findElements(selectorKey, parent = document) {
+    const selectors = WA_SELECTORS[selectorKey];
+    if (!selectors) return [];
+    
+    for (const sel of selectors) {
+      try {
+        const els = Array.from(parent.querySelectorAll(sel))
+          .filter(el => el && el.isConnected);
+        if (els.length) return els;
+      } catch (e) {}
+    }
+    return [];
+  }
+
+  // Função com retry
+  async function findElementWithRetry(selectorKey, maxAttempts = 10, delayMs = 300) {
+    for (let i = 0; i < maxAttempts; i++) {
+      const el = findElement(selectorKey);
+      if (el) return el;
+      await sleep(delayMs);
+    }
+    return null;
+  }
+
+  // -------------------------
+  // Modo Stealth Aprimorado
+  // -------------------------
+  const STEALTH_CONFIG = {
+    // Delays entre caracteres (ms)
+    typingDelayMin: 30,
+    typingDelayMax: 120,
+    
+    // Pausa após "digitando..." aparecer
+    thinkingPauseMin: 500,
+    thinkingPauseMax: 2000,
+    
+    // Delay antes de clicar enviar
+    beforeSendDelayMin: 200,
+    beforeSendDelayMax: 800,
+    
+    // Variação no delay entre mensagens da campanha (%)
+    delayVariation: 0.3, // ±30%
+    
+    // Horários "humanos" (evitar 3am-6am)
+    humanHoursStart: 7,
+    humanHoursEnd: 22,
+    
+    // Máximo de mensagens por hora (parecer natural)
+    maxMessagesPerHour: 30,
+    
+    // Pausas aleatórias longas (simular distração)
+    randomLongPauseChance: 0.05, // 5% de chance
+    randomLongPauseMin: 30000, // 30s
+    randomLongPauseMax: 120000 // 2min
+  };
+
+  // Helper para número aleatório
+  function randomBetween(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  // Digitação humanizada
+  async function humanType(element, text) {
+    element.focus();
+    
+    // Limpar conteúdo existente
+    document.execCommand('selectAll', false, null);
+    await sleep(randomBetween(50, 150));
+    
+    // Digitar caractere por caractere
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      
+      // Delay variável entre caracteres
+      const delay = randomBetween(
+        STEALTH_CONFIG.typingDelayMin,
+        STEALTH_CONFIG.typingDelayMax
+      );
+      await sleep(delay);
+      
+      // Inserir caractere
+      document.execCommand('insertText', false, char);
+      
+      // Ocasionalmente fazer uma pausa maior (como se pensando)
+      if (Math.random() < 0.02) { // 2% chance
+        await sleep(randomBetween(300, 800));
+      }
+    }
+    
+    // Disparar evento de input
+    element.dispatchEvent(new InputEvent('input', { bubbles: true }));
+  }
+
+  // Delay com variação aleatória
+  function randomizedDelay(baseDelayMs) {
+    const variation = baseDelayMs * STEALTH_CONFIG.delayVariation;
+    return baseDelayMs + randomBetween(-variation, variation);
+  }
+
+  // Verificar se está em horário "humano"
+  function isHumanHour() {
+    const hour = new Date().getHours();
+    return hour >= STEALTH_CONFIG.humanHoursStart && 
+           hour < STEALTH_CONFIG.humanHoursEnd;
+  }
+
+  // Verificar rate limit
+  const messageTimestamps = [];
+  function checkRateLimit() {
+    const oneHourAgo = Date.now() - 3600000;
+    // Limpar timestamps antigos
+    while (messageTimestamps.length && messageTimestamps[0] < oneHourAgo) {
+      messageTimestamps.shift();
+    }
+    return messageTimestamps.length < STEALTH_CONFIG.maxMessagesPerHour;
+  }
+
+  function recordMessageSent() {
+    messageTimestamps.push(Date.now());
+  }
+
+  // Pausa aleatória longa (simular distração humana)
+  async function maybeRandomLongPause() {
+    if (Math.random() < STEALTH_CONFIG.randomLongPauseChance) {
+      const pause = randomBetween(
+        STEALTH_CONFIG.randomLongPauseMin,
+        STEALTH_CONFIG.randomLongPauseMax
+      );
+      log(`Stealth: Pausa aleatória de ${Math.round(pause/1000)}s`);
+      await sleep(pause);
+      return true;
+    }
+    return false;
+  }
 
   // -------------------------
   // WhatsApp DOM helpers
@@ -136,11 +457,8 @@
   }
 
   function findComposer() {
-    const cands = Array.from(document.querySelectorAll('footer [contenteditable="true"][role="textbox"]'))
-      .filter(el => el && el.isConnected);
-    if (!cands.length) return null;
-    const visible = cands.find(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-    return visible || cands[0];
+    // Use novo sistema de seletores com fallback
+    return findElement('composer');
   }
 
   async function insertIntoComposer(text) {
@@ -164,14 +482,16 @@
   }
 
   function findSendButton() {
-    // WhatsApp selectors can change; we try multiple.
-    const btn =
-      document.querySelector('footer button[data-testid="compose-btn-send"]') ||
-      document.querySelector('footer button[aria-label*="Enviar"]') ||
-      document.querySelector('footer button span[data-icon="send"]')?.closest('button') ||
-      document.querySelector('footer button span[data-icon="send-light"]')?.closest('button') ||
-      null;
-    return btn;
+    // Use novo sistema de seletores com fallback
+    const btn = findElement('sendButton');
+    if (btn) return btn;
+    // Fallback adicional: tentar encontrar botão através de ícone
+    const iconBtns = document.querySelectorAll('footer button span[data-icon="send"], footer button span[data-icon="send-light"]');
+    for (const icon of iconBtns) {
+      const parent = icon.closest('button');
+      if (parent) return parent;
+    }
+    return null;
   }
 
   async function clickSend() {
@@ -190,19 +510,21 @@
   }
 
   function findAttachButton() {
-    return (
-      document.querySelector('footer button[aria-label*="Anexar"]') ||
-      document.querySelector('footer button[title*="Anexar"]') ||
-      document.querySelector('footer span[data-icon="attach-menu-plus"]')?.closest('button') ||
-      document.querySelector('footer span[data-icon="clip"]')?.closest('button') ||
-      document.querySelector('footer span[data-icon="attach"]')?.closest('button') ||
-      null
-    );
+    // Use novo sistema de seletores com fallback
+    const btn = findElement('attachButton');
+    if (btn) return btn;
+    // Fallback adicional: tentar encontrar botão através de ícone
+    const icons = document.querySelectorAll('footer span[data-icon="attach-menu-plus"], footer span[data-icon="clip"], footer span[data-icon="attach"]');
+    for (const icon of icons) {
+      const parent = icon.closest('button');
+      if (parent) return parent;
+    }
+    return null;
   }
 
   function findBestFileInput() {
-    const inputs = Array.from(document.querySelectorAll('input[type="file"]'))
-      .filter(el => el && el.isConnected);
+    // Use novo sistema de seletores com fallback
+    const inputs = findElements('fileInput');
     if (!inputs.length) return null;
 
     // Prefer image accept
@@ -211,21 +533,16 @@
   }
 
   function findDialogRoot() {
-    return document.querySelector('div[role="dialog"]') ||
-           document.querySelector('[data-testid="media-viewer"]') ||
-           document.querySelector('[data-testid="popup"]') ||
-           null;
+    // Use novo sistema de seletores com fallback
+    return findElement('mediaDialog');
   }
 
   function findMediaCaptionBox() {
     const dlg = findDialogRoot();
     if (!dlg) return null;
 
-    const box =
-      dlg.querySelector('[contenteditable="true"][role="textbox"]') ||
-      dlg.querySelector('div[contenteditable="true"][data-tab]') ||
-      null;
-
+    // Use novo sistema de seletores dentro do dialog
+    const box = findElement('mediaCaptionBox', dlg);
     if (box && box.closest('footer')) return null;
     return box;
   }
@@ -234,14 +551,19 @@
     const dlg = findDialogRoot();
     if (!dlg) return null;
 
-    const btn =
-      dlg.querySelector('button[aria-label*="Enviar"]') ||
-      dlg.querySelector('button[aria-label*="Send"]') ||
-      dlg.querySelector('button span[data-icon="send"]')?.closest('button') ||
-      dlg.querySelector('button span[data-icon="send-light"]')?.closest('button') ||
-      null;
-
+    // Use novo sistema de seletores dentro do dialog
+    const btn = findElement('mediaSendButton', dlg);
     if (btn && btn.closest('footer')) return null;
+    
+    // Fallback adicional: tentar encontrar botão através de ícone
+    if (!btn) {
+      const icons = dlg.querySelectorAll('button span[data-icon="send"], button span[data-icon="send-light"]');
+      for (const icon of icons) {
+        const parent = icon.closest('button');
+        if (parent && !parent.closest('footer')) return parent;
+      }
+    }
+    
     return btn;
   }
 
@@ -368,13 +690,8 @@
     const digits = q.replace(/[^\d]/g, '');
     if (!digits) throw new Error('Número inválido para abrir chat.');
 
-    // Search box selectors (WhatsApp changes often)
-    const box =
-      document.querySelector('[data-testid="chat-list-search"] [contenteditable="true"]') ||
-      document.querySelector('[data-testid="chat-list-search"] [role="textbox"][contenteditable="true"]') ||
-      document.querySelector('#pane-side [contenteditable="true"][role="textbox"]') ||
-      null;
-
+    // Use novo sistema de seletores com fallback
+    const box = findElement('searchBox');
     if (!box) throw new Error('Não encontrei a busca de chats (WhatsApp).');
 
     // type into search
@@ -392,10 +709,8 @@
 
     const isVisible = (el) => !!(el && el.isConnected && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
 
-    // Gather result rows
-    const rows = Array.from(document.querySelectorAll(
-      '#pane-side [role="row"], [data-testid="chat-list"] [role="row"], [data-testid="chat-list"] [role="listitem"]'
-    )).filter(isVisible);
+    // Gather result rows usando novo sistema
+    const rows = findElements('searchResults').filter(isVisible);
 
     const matchByDigits = (el) => {
       const t = safeText(el.innerText || '').replace(/\D/g, '');
@@ -433,6 +748,45 @@
       if (findComposer()) return true;
     }
     throw new Error('Não consegui abrir o chat (composer não apareceu).');
+  }
+
+  // -------------------------
+  // Sistema de Fila com Persistência
+  // -------------------------
+  async function saveCampaignState(state) {
+    await chrome.storage.local.set({ 'whl_campaign_active': state });
+  }
+
+  async function loadCampaignState() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['whl_campaign_active'], (result) => {
+        resolve(result.whl_campaign_active || null);
+      });
+    });
+  }
+
+  async function clearCampaignState() {
+    await chrome.storage.local.remove(['whl_campaign_active']);
+  }
+
+  // Histórico de campanhas (últimas 20)
+  async function saveCampaignToHistory(campaign) {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['whl_campaign_history'], (result) => {
+        const history = result.whl_campaign_history || [];
+        history.unshift({
+          id: campaign.id,
+          createdAt: campaign.createdAt,
+          completedAt: new Date().toISOString(),
+          stats: campaign.progress,
+          message: campaign.config.message.slice(0, 50) + '...'
+        });
+        // Manter apenas últimas 20
+        chrome.storage.local.set({ 
+          'whl_campaign_history': history.slice(0, 20) 
+        }, () => resolve(true));
+      });
+    });
   }
 
   // -------------------------
@@ -547,6 +901,16 @@ Regras:
   }
 
   async function aiChat({ mode, extraInstruction, transcript, memory, chatTitle, examplesOverride, contextOverride }) {
+    // Cache para respostas da IA (30 segundos) - exceto modo train
+    if (mode !== 'train') {
+      const cacheKey = `ai_${mode}_${hashString(transcript.slice(-500))}`;
+      const cached = whlCache.get(cacheKey);
+      if (cached) {
+        log('Cache hit para resposta IA');
+        return cached;
+      }
+    }
+    
     const settings = await getSettingsCached();
     const systemBase = buildSystemPrompt({ persona: settings.persona, businessContext: settings.businessContext });
     const system = systemBase + (contextOverride?.additions ? `\n\nCONTEXTO (Servidor):\n${safeText(contextOverride.additions)}` : '');
@@ -599,7 +963,15 @@ Regras:
 
     const resp = await bg('AI_CHAT', { messages, payload });
     if (!resp?.ok) throw new Error(resp?.error || 'Falha na IA');
-    return safeText(resp.text || '').trim();
+    const result = safeText(resp.text || '').trim();
+    
+    // Armazenar em cache se não for modo train
+    if (mode !== 'train') {
+      const cacheKey = `ai_${mode}_${hashString(transcript.slice(-500))}`;
+      whlCache.set(cacheKey, result, 30000);
+    }
+    
+    return result;
   }
 
   async function aiMemoryFromTranscript(transcript) {
@@ -981,6 +1353,17 @@ ${transcript || '(não consegui ler mensagens)'}
             <b>Links</b> (assistido) e <b>API</b> (backend).
           </div>
 
+          <div id="campResumeBox" style="display:none; margin-bottom:10px;">
+            <div class="note" style="background: rgba(139,92,246,.12); border-color: rgba(139,92,246,.35);">
+              ⚠️ Campanha pausada encontrada
+            </div>
+            <div class="btns">
+              <button class="primary" id="campResumeBtn">Retomar Campanha</button>
+              <button class="danger" id="campClearBtn">Descartar</button>
+            </div>
+            <div class="status" id="campResumeStatus"></div>
+          </div>
+
           <label>Modo</label>
           <select id="campMode">
             <option value="links">Links (assistido)</option>
@@ -1328,12 +1711,8 @@ ${transcript || '(não consegui ler mensagens)'}
     }
 
     function hookMessageObserver() {
-      // Observe message container changes
-      const container =
-        document.querySelector('[data-testid="conversation-panel-messages"]') ||
-        document.querySelector('#main') ||
-        null;
-
+      // Observe message container changes usando novo sistema de seletores
+      const container = findElement('messagesContainer');
       if (!container) return;
 
       const obs = new MutationObserver(() => {
@@ -1355,11 +1734,44 @@ ${transcript || '(não consegui ler mensagens)'}
     const campNumbers = shadow.getElementById('campNumbers');
     const campMsg = shadow.getElementById('campMsg');
 
+    const campResumeBox = shadow.getElementById('campResumeBox');
+    const campResumeBtn = shadow.getElementById('campResumeBtn');
+    const campClearBtn = shadow.getElementById('campClearBtn');
+    const campResumeStatus = shadow.getElementById('campResumeStatus');
 
     const campDomStatus = shadow.getElementById('campDomStatus');
     const campMedia = shadow.getElementById('campMedia');
 
     let campMediaPayload = null;
+
+    // Verificar se existe campanha pausada ao carregar
+    async function checkPausedCampaign() {
+      try {
+        const state = await loadCampaignState();
+        if (state && (state.status === 'paused' || state.status === 'running')) {
+          campResumeBox.style.display = 'block';
+          campResumeStatus.textContent = `Campanha ${state.id}: ${state.progress.sent}/${state.progress.total} enviadas`;
+          campResumeStatus.classList.add('ok');
+        }
+      } catch (e) {
+        warn('Erro ao verificar campanha pausada:', e);
+      }
+    }
+
+    campClearBtn.addEventListener('click', async () => {
+      try {
+        await clearCampaignState();
+        campResumeBox.style.display = 'none';
+        campResumeStatus.textContent = 'Campanha descartada';
+        campResumeStatus.classList.remove('ok');
+      } catch (e) {
+        campResumeStatus.textContent = `Erro: ${e?.message || String(e)}`;
+        campResumeStatus.classList.add('err');
+      }
+    });
+
+    // Check for paused campaigns on load
+    checkPausedCampaign();
 
     async function fileToPayload(file) {
       if (!file) return null;

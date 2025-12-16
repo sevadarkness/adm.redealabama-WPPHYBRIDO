@@ -377,7 +377,20 @@
 
     if (!box) throw new Error('Não encontrei a busca de chats (WhatsApp).');
 
-    // type into search
+    // Clear any previous search first
+    box.focus();
+    await sleep(200);
+    try {
+      document.execCommand('selectAll', false, null);
+      document.execCommand('insertText', false, '');
+      box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    } catch (_) {
+      box.textContent = '';
+      box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    }
+    await sleep(300);
+
+    // Type the number
     box.focus();
     try {
       document.execCommand('selectAll', false, null);
@@ -388,14 +401,20 @@
       box.dispatchEvent(new InputEvent('input', { bubbles: true }));
     }
 
-    await sleep(700);
+    // Wait longer for results to appear
+    await sleep(1200);
 
     const isVisible = (el) => !!(el && el.isConnected && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
 
-    // Gather result rows
-    const rows = Array.from(document.querySelectorAll(
-      '#pane-side [role="row"], [data-testid="chat-list"] [role="row"], [data-testid="chat-list"] [role="listitem"]'
-    )).filter(isVisible);
+    // Gather result rows with multiple retries
+    let rows = [];
+    for (let retry = 0; retry < 3; retry++) {
+      rows = Array.from(document.querySelectorAll(
+        '#pane-side [role="row"], [data-testid="chat-list"] [role="row"], [data-testid="chat-list"] [role="listitem"]'
+      )).filter(isVisible);
+      if (rows.length > 0) break;
+      await sleep(500);
+    }
 
     const matchByDigits = (el) => {
       const t = safeText(el.innerText || '').replace(/\D/g, '');
@@ -417,19 +436,20 @@
     if (!target) throw new Error('Nenhum resultado na busca do WhatsApp (para este número).');
 
     target.click();
+    await sleep(500);
 
     // Clear search so it doesn't interfere with next iterations
     try {
-      await sleep(120);
+      await sleep(300);
       box.focus();
       document.execCommand('selectAll', false, null);
       document.execCommand('insertText', false, '');
       box.dispatchEvent(new InputEvent('input', { bubbles: true }));
     } catch (_) {}
 
-    // Wait for composer
-    for (let i = 0; i < 30; i++) {
-      await sleep(250);
+    // Wait for composer with more retries
+    for (let i = 0; i < 40; i++) {
+      await sleep(300);
       if (findComposer()) return true;
     }
     throw new Error('Não consegui abrir o chat (composer não apareceu).');
@@ -903,6 +923,30 @@ ${transcript || '(não consegui ler mensagens)'}
       }
       .checkline input{ width:16px; height:16px; }
       .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+      .progress-wrap {
+        margin-top: 10px;
+        background: rgba(5,7,15,.55);
+        border-radius: 14px;
+        height: 28px;
+        position: relative;
+        overflow: hidden;
+      }
+      .progress-bar {
+        height: 100%;
+        background: linear-gradient(135deg, rgba(139,92,246,.8), rgba(59,130,246,.8));
+        border-radius: 14px;
+        width: 0%;
+        transition: width 0.3s ease;
+      }
+      .progress-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 11px;
+        color: var(--text);
+      }
     `;
     shadow.appendChild(style);
 
@@ -977,59 +1021,54 @@ ${transcript || '(não consegui ler mensagens)'}
 
         <div class="sec" data-sec="camp">
           <div class="note">
-            Campanhas com 2 modos:
-            <b>Links</b> (assistido) e <b>API</b> (backend).
+            Campanhas: <b>DOM</b> (automático no WhatsApp Web) ou <b>API</b> (backend oficial).
           </div>
 
           <label>Modo</label>
           <select id="campMode">
-            <option value="links">Links (assistido)</option>
-            <option value="dom" disabled>DOM (desativado)</option>
+            <option value="dom">DOM (automático)</option>
             <option value="api">API (backend)</option>
           </select>
 
           <label>Lista de números (1 por linha, com DDI) ou CSV: numero,nome</label>
           <textarea id="campNumbers" placeholder="+5511999999999,João&#10;+5511988888888,Maria"></textarea>
 
-          <label>Mensagem ({{nome}} e {{numero}})</label>
+          <label>Mensagem (use {{nome}} e {{numero}})</label>
           <textarea id="campMsg" placeholder="Olá {{nome}}, tudo bem?"></textarea>
+
+          <label>Mídia (opcional - imagem/vídeo)</label>
+          <input id="campMedia" type="file" accept="image/*,video/*" />
+          <div class="status" id="campMediaStatus"></div>
 
           <div id="campDomBox" style="display:none;">
             <div class="row">
               <div>
                 <label>Delay min (s)</label>
-                <input id="campDelayMin" type="number" min="1" max="120" value="6" />
+                <input id="campDelayMin" type="number" min="3" max="120" value="8" />
               </div>
               <div>
                 <label>Delay max (s)</label>
-                <input id="campDelayMax" type="number" min="1" max="240" value="12" />
+                <input id="campDelayMax" type="number" min="5" max="240" value="15" />
               </div>
             </div>
 
-            <label>Mídia (opcional)</label>
-            <input id="campMedia" type="file" accept="image/*" />
-            <div class="hint">A imagem será enviada como anexo. A mensagem acima vira a legenda (opcional).</div>
+            <div class="note" style="margin-top:10px;">
+              <b>⚠️ Atenção:</b> Use com moderação. Envios em massa podem causar bloqueio do número.
+              Recomendado: máximo 50 contatos por sessão com delays altos.
+            </div>
+
+            <div class="btns">
+              <button class="primary" id="campStartBtn">▶ Iniciar Campanha</button>
+              <button id="campPauseBtn">⏸ Pausar</button>
+              <button class="danger" id="campStopBtn">⏹ Parar</button>
+            </div>
 
             <div class="status" id="campDomStatus"></div>
 
-            <div class="note" style="margin-top:10px;">
-              <b>Modo DOM:</b> desativado nesta build por segurança/boas práticas. Use Links (assistido) ou API (backend oficial).
+            <div class="progress-wrap" id="campProgress" style="display:none;">
+              <div class="progress-bar" id="campProgressBar"></div>
+              <span class="progress-text" id="campProgressText">0/0</span>
             </div>
-
-            <div class="btns">
-              <button class="primary" id="campStartBtn">Iniciar (DOM) (desativado)</button>
-              <button id="campPauseBtn">Pausar</button>
-              <button class="danger" id="campStopBtn">Parar</button>
-            </div>
-          </div>
-
-          <div id="campLinksBox">
-            <div class="btns">
-              <button class="primary" id="campBuildBtn">Gerar links</button>
-              <button id="campCopyBtn">Copiar lista</button>
-            </div>
-            <div class="status" id="campStatus"></div>
-            <div class="list" id="campLinks"></div>
           </div>
 
           <div id="campApiBox" style="display:none;">
@@ -1357,14 +1396,15 @@ ${transcript || '(não consegui ler mensagens)'}
 
 
     const campDomStatus = shadow.getElementById('campDomStatus');
+    const campMediaStatus = shadow.getElementById('campMediaStatus');
     const campMedia = shadow.getElementById('campMedia');
 
     let campMediaPayload = null;
 
     async function fileToPayload(file) {
       if (!file) return null;
-      const maxBytes = 4 * 1024 * 1024; // 4MB (ajuste se quiser)
-      if (file.size > maxBytes) throw new Error('Arquivo muito grande (máx 4MB).');
+      const maxBytes = 16 * 1024 * 1024; // 16MB (WhatsApp supports up to 16MB for media)
+      if (file.size > maxBytes) throw new Error('Arquivo muito grande (máx 16MB).');
       const dataUrl = await new Promise((resolve, reject) => {
         const fr = new FileReader();
         fr.onerror = () => reject(new Error('Falha ao ler arquivo'));
@@ -1387,27 +1427,28 @@ ${transcript || '(não consegui ler mensagens)'}
       if (kind === 'err') campDomStatus.classList.add('err');
     }
 
+    function setCampMediaStatus(msg, kind) {
+      if (!campMediaStatus) return;
+      campMediaStatus.textContent = msg || '';
+      campMediaStatus.classList.remove('ok','err');
+      if (kind === 'ok') campMediaStatus.classList.add('ok');
+      if (kind === 'err') campMediaStatus.classList.add('err');
+    }
+
     if (campMedia) {
       campMedia.addEventListener('change', async () => {
         try {
           const f = campMedia.files && campMedia.files[0];
           campMediaPayload = f ? await fileToPayload(f) : null;
-          if (campMediaPayload) setCampDomStatus(`Mídia pronta: ${campMediaPayload.name}`, 'ok');
-          else setCampDomStatus('Sem mídia selecionada.', 'ok');
+          if (campMediaPayload) setCampMediaStatus(`✅ Mídia pronta: ${campMediaPayload.name}`, 'ok');
+          else setCampMediaStatus('Sem mídia selecionada.', 'ok');
         } catch (e) {
           campMediaPayload = null;
-          setCampDomStatus(e?.message || String(e), 'err');
+          setCampMediaStatus(e?.message || String(e), 'err');
         }
       });
     }
 
-
-    const campBuildBtn = shadow.getElementById('campBuildBtn');
-    const campCopyBtn = shadow.getElementById('campCopyBtn');
-    const campStatus = shadow.getElementById('campStatus');
-    const campLinks = shadow.getElementById('campLinks');
-
-    const campLinksBox = shadow.getElementById('campLinksBox');
     const campDomBox = shadow.getElementById('campDomBox');
     const campApiBox = shadow.getElementById('campApiBox');
 
@@ -1422,19 +1463,25 @@ ${transcript || '(não consegui ler mensagens)'}
     const campApiBtn = shadow.getElementById('campApiBtn');
     const campApiStatus = shadow.getElementById('campApiStatus');
 
+    const campProgress = shadow.getElementById('campProgress');
+    const campProgressBar = shadow.getElementById('campProgressBar');
+    const campProgressText = shadow.getElementById('campProgressText');
+
     const campRun = { running:false, paused:false, abort:false, cursor:0, total:0 };
 
-    function setCampStatus(msg, kind) {
-      campStatus.textContent = msg || '';
-      campStatus.classList.remove('ok','err');
-      if (kind === 'ok') campStatus.classList.add('ok');
-      if (kind === 'err') campStatus.classList.add('err');
-    }
     function setCampApiStatus(msg, kind) {
       campApiStatus.textContent = msg || '';
       campApiStatus.classList.remove('ok','err');
       if (kind === 'ok') campApiStatus.classList.add('ok');
       if (kind === 'err') campApiStatus.classList.add('err');
+    }
+
+    function updateProgress(current, total) {
+      if (!campProgress || !campProgressBar || !campProgressText) return;
+      const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+      campProgressBar.style.width = `${percent}%`;
+      campProgressText.textContent = `${current}/${total}`;
+      campProgress.style.display = total > 0 ? 'block' : 'none';
     }
 
     function parseCampaignLines(raw) {
@@ -1461,62 +1508,12 @@ ${transcript || '(não consegui ler mensagens)'}
     }
 
     function renderCampMode() {
-      let m = campMode.value;
-      if (m === 'dom') {
-        // DOM mode disabled in this build
-        m = 'api';
-        campMode.value = 'api';
-        try { setCampStatus('DOM desativado. Use Links (assistido) ou API (backend).', 'err'); } catch (_) {}
-      }
-      campLinksBox.style.display = (m === 'links') ? 'block' : 'none';
+      const m = campMode.value;
       campDomBox.style.display = (m === 'dom') ? 'block' : 'none';
       campApiBox.style.display = (m === 'api') ? 'block' : 'none';
     }
     campMode.addEventListener('change', renderCampMode);
     renderCampMode();
-
-    // Links mode (assistido) - same behavior as lite v0.1
-    campBuildBtn.addEventListener('click', () => {
-      setCampStatus('', null);
-      campLinks.innerHTML = '';
-      try {
-        const entries = parseCampaignLines(campNumbers.value);
-        if (!entries.length) throw new Error('Cole pelo menos 1 número.');
-        const msg = safeText(campMsg.value).trim();
-        if (!msg) throw new Error('Digite a mensagem.');
-
-        const max = Math.min(entries.length, 200);
-        const used = entries.slice(0, max);
-
-        for (const e of used) {
-          const text = applyVars(msg, e);
-          const phone = e.number.replace(/^\+/, '');
-          const url = `https://web.whatsapp.com/send?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(text)}`;
-          const a = document.createElement('a');
-          a.href = url;
-          a.target = '_blank';
-          a.rel = 'noreferrer';
-          a.textContent = `${e.number}${e.name ? ' - ' + e.name : ''}`;
-          campLinks.appendChild(a);
-        }
-
-        setCampStatus(`Links gerados: ${used.length}.`, 'ok');
-      } catch (e) {
-        setCampStatus(`Erro: ${e?.message || String(e)}`, 'err');
-      }
-    });
-
-    campCopyBtn.addEventListener('click', async () => {
-      try {
-        const entries = parseCampaignLines(campNumbers.value);
-        const msg = safeText(campMsg.value).trim();
-        const lines = entries.map((e) => `${e.number}${e.name ? ',' + e.name : ''}`).join('\n');
-        await copyToClipboard(lines);
-        setCampStatus('Lista copiada ✅', 'ok');
-      } catch (e) {
-        setCampStatus(`Erro: ${e?.message || String(e)}`, 'err');
-      }
-    });
 
     async function waitWhilePaused() {
       while (campRun.paused && !campRun.abort) {
@@ -1525,10 +1522,8 @@ ${transcript || '(não consegui ler mensagens)'}
     }
 
     async function executeDomCampaign(entries, msg) {
-      throw new Error('Modo DOM de campanha desativado nesta build. Use Campanha (API) com WhatsApp oficial ou Links (assistido).');
-
-      const dmin = clamp(campDelayMin.value || 6, 1, 120);
-      const dmax = clamp(campDelayMax.value || 12, 1, 240);
+      const dmin = clamp(campDelayMin.value || 8, 3, 120);
+      const dmax = clamp(campDelayMax.value || 15, 5, 240);
 
       campRun.running = true;
       campRun.paused = false;
@@ -1536,7 +1531,8 @@ ${transcript || '(não consegui ler mensagens)'}
       campRun.cursor = 0;
       campRun.total = entries.length;
 
-      setCampDomStatus(`Iniciando IA executora: ${entries.length} contatos…`, 'ok');
+      setCampDomStatus(`🚀 Iniciando campanha: ${entries.length} contatos…`, 'ok');
+      updateProgress(0, entries.length);
 
       for (let i = 0; i < entries.length; i++) {
         if (campRun.abort) break;
@@ -1548,39 +1544,61 @@ ${transcript || '(não consegui ler mensagens)'}
         const phoneDigits = e.number.replace(/[^\d]/g, '');
 
         try {
-          setCampDomStatus(`(${i+1}/${entries.length}) Abrindo ${e.number}…`, 'ok');
+          setCampDomStatus(`📱 (${i+1}/${entries.length}) Abrindo ${e.number}…`, 'ok');
+          updateProgress(i, entries.length);
 
           // Abre o chat dentro da mesma aba (busca lateral)
           await openChatBySearch(phoneDigits);
-          await sleep(350);
+          await sleep(800); // Increased delay to ensure chat opens
 
-          if (campMediaPayload) {
-            // Envia mídia + legenda (mensagem)
-            await attachMediaAndSend(campMediaPayload, text);
-          } else {
-            if (!text) throw new Error('Mensagem vazia (e sem mídia).');
-            await insertIntoComposer(text);
-            await sleep(120);
-            await clickSend();
+          // Verify composer is available
+          const composer = findComposer();
+          if (!composer) {
+            throw new Error('Não consegui abrir o chat (composer não encontrado).');
           }
 
-          setCampDomStatus(`Enviado ✅ (${i+1}/${entries.length}) para ${e.number}`, 'ok');
+          if (campMediaPayload) {
+            setCampDomStatus(`📎 (${i+1}/${entries.length}) Enviando mídia para ${e.number}…`, 'ok');
+            // Envia mídia + legenda (mensagem)
+            await attachMediaAndSend(campMediaPayload, text);
+            await sleep(500); // Wait for media to be sent
+          } else {
+            if (!text) throw new Error('Mensagem vazia (e sem mídia).');
+            setCampDomStatus(`💬 (${i+1}/${entries.length}) Enviando mensagem para ${e.number}…`, 'ok');
+            await insertIntoComposer(text);
+            await sleep(300);
+            await clickSend();
+            await sleep(500); // Wait for message to be sent
+          }
+
+          setCampDomStatus(`✅ Enviado (${i+1}/${entries.length}) para ${e.number}`, 'ok');
+          updateProgress(i + 1, entries.length);
         } catch (err) {
-          setCampDomStatus(`Falha (${i+1}/${entries.length}) em ${e.number}: ${err?.message || String(err)}`, 'err');
+          setCampDomStatus(`❌ Falha (${i+1}/${entries.length}) em ${e.number}: ${err?.message || String(err)}`, 'err');
+          updateProgress(i + 1, entries.length);
+          // Continue to next contact even if one fails
         } finally {
           campRun.cursor = i + 1;
         }
 
-        const delay = (Math.random() * (dmax - dmin) + dmin) * 1000;
-        await sleep(delay);
+        // Random delay between messages
+        if (i < entries.length - 1) { // Don't delay after last message
+          const delay = (Math.random() * (dmax - dmin) + dmin) * 1000;
+          setCampDomStatus(`⏳ Aguardando ${Math.round(delay/1000)}s até próximo envio… (${i+1}/${entries.length} concluídos)`, 'ok');
+          await sleep(delay);
+        }
       }
 
       campRun.running = false;
       campRun.paused = false;
-      campPauseBtn.textContent = 'Pausar';
+      campPauseBtn.textContent = '⏸ Pausar';
+      updateProgress(entries.length, entries.length);
 
-      if (campRun.abort) setCampDomStatus('Campanha interrompida.', 'err');
-      else setCampDomStatus('Campanha concluída ✅', 'ok');
+      if (campRun.abort) {
+        setCampDomStatus('⚠️ Campanha interrompida pelo usuário.', 'err');
+      } else {
+        setCampDomStatus(`🎉 Campanha concluída! ${entries.length} contatos processados.`, 'ok');
+      }
     }
 
     campStartBtn.addEventListener('click', async () => {
@@ -1603,14 +1621,15 @@ ${transcript || '(não consegui ler mensagens)'}
     campPauseBtn.addEventListener('click', () => {
       if (!campRun.running) return;
       campRun.paused = !campRun.paused;
-      campPauseBtn.textContent = campRun.paused ? 'Retomar' : 'Pausar';
+      campPauseBtn.textContent = campRun.paused ? '▶ Retomar' : '⏸ Pausar';
     });
 
     campStopBtn.addEventListener('click', () => {
       if (!campRun.running) return;
       campRun.abort = true;
       campRun.paused = false;
-      campPauseBtn.textContent = 'Pausar';
+      campPauseBtn.textContent = '⏸ Pausar';
+      setCampDomStatus('🛑 Parando campanha…', 'err');
     });
 
     // API mode (backend) - compatible with old backend /api/campaigns shape
@@ -1619,13 +1638,15 @@ ${transcript || '(não consegui ler mensagens)'}
       try {
         const entries = parseCampaignLines(campNumbers.value);
         if (!entries.length) throw new Error('Cole pelo menos 1 número.');
+        
         const msg = safeText(campMsg.value).trim();
-        if (!msg) throw new Error('Digite a mensagem.');
+        const hasMedia = Boolean(campMediaPayload && campMediaPayload.base64);
+        if (!msg && !hasMedia) throw new Error('Digite a mensagem ou selecione uma mídia.');
 
         const batchSize = clamp(campBatch.value || 25, 1, 200);
         const intervalSeconds = clamp(campInterval.value || 8, 1, 300);
 
-        // backend expects: { message, messages:[{phone, vars?}], batchSize, intervalSeconds }
+        // backend expects: { message, messages:[{phone, vars?}], batchSize, intervalSeconds, media? }
         // We'll send phone without '+'
         const messages = entries.map((e) => ({
           phone: e.number.replace(/[^\d]/g, ''),
@@ -1636,16 +1657,22 @@ ${transcript || '(não consegui ler mensagens)'}
           message: msg, // keep {{nome}} placeholders - backend may replace
           messages,
           batchSize,
-          intervalSeconds
+          intervalSeconds,
+          // Add media support
+          media: campMediaPayload ? {
+            name: campMediaPayload.name,
+            type: campMediaPayload.type,
+            base64: campMediaPayload.base64
+          } : null
         };
 
         const resp = await bg('CAMPAIGN_API_CREATE', { payload });
         if (!resp?.ok) throw new Error(resp?.error || 'Falha na API');
 
         const id = resp?.data?.id || resp?.data?.campaignId || '';
-        setCampApiStatus(`Enviado ao backend ✅ ${id ? `Campanha: ${id}` : ''}`, 'ok');
+        setCampApiStatus(`✅ Enviado ao backend! ${id ? `Campanha ID: ${id}` : ''}`, 'ok');
       } catch (e) {
-        setCampApiStatus(`Erro: ${e?.message || String(e)}`, 'err');
+        setCampApiStatus(`❌ Erro: ${e?.message || String(e)}`, 'err');
       }
     });
 

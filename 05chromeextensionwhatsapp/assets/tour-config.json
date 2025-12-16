@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "popup_steps": 6,
+  "whatsapp_steps": 9,
+  "total_steps": 15,
+  "features": {
+    "auto_start": true,
+    "show_help_button": true,
+    "allow_skip": true,
+    "show_progress": true
+  }
+}

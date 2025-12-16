@@ -1805,6 +1805,215 @@ ${transcript || '(não consegui ler mensagens)'}
         font-size: 10px;
         min-width: unset;
       }
+
+      /* Tour Onboarding Styles */
+      .tour-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.75);
+        z-index: 9998;
+        pointer-events: none;
+      }
+      .tour-highlight {
+        position: relative;
+        z-index: 9999 !important;
+        box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.5), 0 0 20px rgba(139, 92, 246, 0.3) !important;
+        border-radius: 14px;
+        pointer-events: auto;
+      }
+      .tour-tooltip {
+        position: absolute;
+        z-index: 10000;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 16px;
+        padding: 16px;
+        width: 280px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        animation: tooltipFadeIn 0.3s ease;
+      }
+      @keyframes tooltipFadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .tour-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .tour-step-indicator {
+        font-size: 11px;
+        color: #8b5cf6;
+        font-weight: 600;
+      }
+      .tour-close {
+        background: none;
+        border: none;
+        color: #666;
+        font-size: 16px;
+        cursor: pointer;
+        padding: 4px;
+        line-height: 1;
+      }
+      .tour-close:hover { color: #fff; }
+      .tour-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #fff;
+        margin: 0 0 8px 0;
+      }
+      .tour-content {
+        font-size: 13px;
+        color: #aaa;
+        line-height: 1.5;
+        margin: 0 0 16px 0;
+      }
+      .tour-progress {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        margin-bottom: 16px;
+      }
+      .tour-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+      }
+      .tour-dot.active {
+        background: #8b5cf6;
+        transform: scale(1.2);
+      }
+      .tour-dot.completed { background: #22c55e; }
+      .tour-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+      .tour-btn {
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+      }
+      .tour-btn-primary {
+        background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+        color: #fff;
+      }
+      .tour-btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+      }
+      .tour-btn-secondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: #aaa;
+      }
+      .tour-btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+      }
+      .tour-tooltip::before {
+        content: '';
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border: inherit;
+        border-right: none;
+        border-bottom: none;
+        transform: rotate(45deg);
+        z-index: -1;
+      }
+      .tour-tooltip.position-bottom::before {
+        top: -7px;
+        left: 50%;
+        margin-left: -6px;
+      }
+      .tour-tooltip.position-top::before {
+        bottom: -7px;
+        left: 50%;
+        margin-left: -6px;
+        transform: rotate(225deg);
+      }
+      .tour-tooltip.position-left::before {
+        right: -7px;
+        top: 50%;
+        margin-top: -6px;
+        transform: rotate(135deg);
+      }
+      .tour-tooltip.position-right::before {
+        left: -7px;
+        top: 50%;
+        margin-top: -6px;
+        transform: rotate(-45deg);
+      }
+      .tour-tooltip.position-center::before { display: none; }
+      .tour-complete-modal {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 10001;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+        border-radius: 20px;
+        padding: 24px;
+        text-align: center;
+        width: 300px;
+        animation: modalPop 0.4s ease;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      }
+      @keyframes modalPop {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      }
+      .tour-complete-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+      }
+      .tour-complete-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: #22c55e;
+        margin-bottom: 8px;
+      }
+      .tour-complete-text {
+        font-size: 13px;
+        color: #aaa;
+        margin-bottom: 20px;
+        line-height: 1.5;
+      }
+      .tour-help-btn {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(139, 92, 246, 0.2);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        color: #8b5cf6;
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        z-index: 1000;
+      }
+      .tour-help-btn:hover {
+        background: rgba(139, 92, 246, 0.3);
+        transform: scale(1.1);
+      }
     `;
     shadow.appendChild(style);
 
@@ -3530,6 +3739,348 @@ ${transcript || '(não consegui ler mensagens)'}
     if (tabs.find(t => t.classList.contains('active') && t.dataset.tab === 'training')) {
       loadKnowledgeUI();
     }
+
+    // -------------------------
+    // Initialize Onboarding Tour
+    // -------------------------
+    try {
+      // Load and initialize the tour
+      const script = document.createElement('script');
+      script.textContent = `
+        ${loadOnboardingScript()}
+      `;
+      shadow.appendChild(script);
+      
+      // Initialize tour with shadow root
+      if (typeof WhatsAppTour !== 'undefined') {
+        WhatsAppTour.init(shadow);
+        WhatsAppTour.addHelpButton();
+      }
+    } catch (e) {
+      debugLog('Failed to initialize onboarding tour:', e);
+    }
+  }
+
+  // Load onboarding script inline
+  function loadOnboardingScript() {
+    return \`
+      const WhatsAppTour = {
+        steps: [
+          {
+            step: 7,
+            target: '.fab',
+            title: '🤖 Botão do Chatbot',
+            content: 'Clique aqui para abrir o painel da IA. Ele aparece em qualquer conversa do WhatsApp.',
+            position: 'left'
+          },
+          {
+            step: 8,
+            target: '.tab[data-tab="chat"]',
+            title: '💬 Aba Chatbot',
+            content: 'Aqui a IA lê a conversa e sugere respostas. Clique em "Gerar" para criar uma sugestão.',
+            position: 'right'
+          },
+          {
+            step: 9,
+            target: '#chatMode',
+            title: '⚡ Modos de Ação',
+            content: 'Escolha o que a IA deve fazer: Sugerir resposta, Resumir conversa, Próximos passos ou Modo treino.',
+            position: 'right'
+          },
+          {
+            step: 10,
+            target: '#genBtn',
+            title: '👍 Gerar e Feedback',
+            content: 'Clique em "Gerar" para criar sugestões. Depois, use os feedbacks para treinar a IA e aumentar o score de confiança!',
+            position: 'right',
+            highlight: true
+          },
+          {
+            step: 11,
+            target: '#memBtn',
+            title: '🦁 Memória (Leão)',
+            content: 'A IA salva o contexto de cada cliente automaticamente. Você pode atualizar as memórias aqui.',
+            position: 'right'
+          },
+          {
+            step: 12,
+            target: '.tab[data-tab="camp"]',
+            title: '📢 Aba Campanhas',
+            content: 'Envie mensagens em massa via DOM (simulando cliques) ou via API oficial do WhatsApp.',
+            position: 'right'
+          },
+          {
+            step: 13,
+            target: '#scheduleDateTime',
+            title: '📅 Agendamento',
+            content: 'Agende campanhas para serem enviadas automaticamente no horário que você definir.',
+            position: 'right'
+          },
+          {
+            step: 14,
+            target: '.tab[data-tab="cont"]',
+            title: '📋 Aba Contatos',
+            content: 'Extraia números de telefone visíveis na tela do WhatsApp. Útil para criar listas de envio.',
+            position: 'right'
+          },
+          {
+            step: 15,
+            target: '.tab[data-tab="training"]',
+            title: '🧠 Aba Treinamento IA',
+            content: 'Cadastre produtos, FAQs, respostas rápidas e exemplos de conversa. Isso melhora as respostas da IA!',
+            position: 'right'
+          }
+        ],
+        currentStep: 0,
+        overlay: null,
+        tooltip: null,
+        shadowRoot: null,
+        panelWasOpen: false,
+        
+        init(shadowRoot) {
+          this.shadowRoot = shadowRoot;
+          chrome.storage.local.get(['onboarding_whatsapp_completed'], (result) => {
+            if (!result.onboarding_whatsapp_completed) {
+              this.waitForPanelOpen();
+            }
+          });
+        },
+        
+        waitForPanelOpen() {
+          if (!this.shadowRoot) return;
+          const panel = this.shadowRoot.querySelector('.panel');
+          if (!panel) {
+            setTimeout(() => this.waitForPanelOpen(), 500);
+            return;
+          }
+          const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+              if (mutation.attributeName === 'class') {
+                const isOpen = panel.classList.contains('open');
+                if (isOpen && !this.panelWasOpen) {
+                  this.panelWasOpen = true;
+                  observer.disconnect();
+                  setTimeout(() => this.start(), 500);
+                }
+              }
+            });
+          });
+          observer.observe(panel, { attributes: true });
+        },
+        
+        start() {
+          if (!this.shadowRoot) return;
+          this.currentStep = 0;
+          this.createOverlay();
+          this.showStep(0);
+        },
+        
+        createOverlay() {
+          this.overlay = document.createElement('div');
+          this.overlay.className = 'tour-overlay';
+          this.shadowRoot.appendChild(this.overlay);
+          this.tooltip = document.createElement('div');
+          this.tooltip.className = 'tour-tooltip';
+          this.shadowRoot.appendChild(this.tooltip);
+        },
+        
+        showStep(index) {
+          if (index < 0 || index >= this.steps.length) return;
+          const step = this.steps[index];
+          this.shadowRoot.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+          
+          if (step.target.includes('data-tab')) {
+            const tab = this.shadowRoot.querySelector(step.target);
+            if (tab) setTimeout(() => tab.click(), 100);
+          }
+          
+          setTimeout(() => {
+            let target = null;
+            if (step.target) {
+              target = this.shadowRoot.querySelector(step.target);
+              if (target) {
+                target.classList.add('tour-highlight');
+                target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              }
+            }
+            
+            if (target && step.position !== 'center') {
+              this.positionTooltip(target, step.position);
+            } else {
+              const panel = this.shadowRoot.querySelector('.panel');
+              if (panel) {
+                const rect = panel.getBoundingClientRect();
+                this.tooltip.style.top = \\\`\\\${rect.height / 2}px\\\`;
+                this.tooltip.style.left = \\\`\\\${rect.width / 2 - 140}px\\\`;
+              }
+              this.tooltip.classList.remove('position-top', 'position-bottom', 'position-left', 'position-right');
+              this.tooltip.classList.add('position-center');
+            }
+            
+            this.renderTooltip(index, step);
+          }, 200);
+        },
+        
+        renderTooltip(index, step) {
+          this.tooltip.innerHTML = \\\`
+            <div class="tour-header">
+              <span class="tour-step-indicator">\\\${index + 1}/\\\${this.steps.length}</span>
+              <button class="tour-close">✕</button>
+            </div>
+            <h3 class="tour-title">\\\${step.title}</h3>
+            <p class="tour-content">\\\${step.content}</p>
+            <div class="tour-progress">
+              \\\${this.steps.map((_, i) => \\\`<span class="tour-dot \\\${i === index ? 'active' : ''} \\\${i < index ? 'completed' : ''}"></span>\\\`).join('')}
+            </div>
+            <div class="tour-actions">
+              \\\${index > 0 ? '<button class="tour-btn tour-btn-secondary tour-prev">← Anterior</button>' : ''}
+              \\\${index < this.steps.length - 1 
+                ? '<button class="tour-btn tour-btn-primary tour-next">Próximo →</button>'
+                : '<button class="tour-btn tour-btn-primary tour-complete">Concluir ✓</button>'
+              }
+            </div>
+          \\\`;
+          
+          const closeBtn = this.tooltip.querySelector('.tour-close');
+          const prevBtn = this.tooltip.querySelector('.tour-prev');
+          const nextBtn = this.tooltip.querySelector('.tour-next');
+          const completeBtn = this.tooltip.querySelector('.tour-complete');
+          
+          if (closeBtn) closeBtn.addEventListener('click', () => this.skip());
+          if (prevBtn) prevBtn.addEventListener('click', () => this.prev());
+          if (nextBtn) nextBtn.addEventListener('click', () => this.next());
+          if (completeBtn) completeBtn.addEventListener('click', () => this.complete());
+        },
+        
+        positionTooltip(target, position) {
+          const rect = target.getBoundingClientRect();
+          const panel = this.shadowRoot.querySelector('.panel');
+          const panelRect = panel ? panel.getBoundingClientRect() : { top: 0, left: 0 };
+          const tooltipWidth = 280;
+          const tooltipHeight = 240;
+          const gap = 16;
+          const relativeTop = rect.top - panelRect.top;
+          const relativeLeft = rect.left - panelRect.left;
+          
+          this.tooltip.classList.remove('position-top', 'position-bottom', 'position-left', 'position-right', 'position-center');
+          
+          switch (position) {
+            case 'right':
+              this.tooltip.style.top = \\\`\\\${relativeTop + (rect.height / 2) - (tooltipHeight / 2)}px\\\`;
+              this.tooltip.style.left = \\\`\\\${relativeLeft + rect.width + gap}px\\\`;
+              this.tooltip.classList.add('position-right');
+              break;
+            case 'left':
+              this.tooltip.style.top = \\\`\\\${relativeTop + (rect.height / 2) - (tooltipHeight / 2)}px\\\`;
+              this.tooltip.style.left = \\\`\\\${relativeLeft - tooltipWidth - gap}px\\\`;
+              this.tooltip.classList.add('position-left');
+              break;
+            case 'bottom':
+              this.tooltip.style.top = \\\`\\\${relativeTop + rect.height + gap}px\\\`;
+              this.tooltip.style.left = \\\`\\\${relativeLeft + (rect.width / 2) - (tooltipWidth / 2)}px\\\`;
+              this.tooltip.classList.add('position-bottom');
+              break;
+            case 'top':
+              this.tooltip.style.top = \\\`\\\${relativeTop - tooltipHeight - gap}px\\\`;
+              this.tooltip.style.left = \\\`\\\${relativeLeft + (rect.width / 2) - (tooltipWidth / 2)}px\\\`;
+              this.tooltip.classList.add('position-top');
+              break;
+          }
+        },
+        
+        next() {
+          this.currentStep++;
+          if (this.currentStep < this.steps.length) {
+            this.showStep(this.currentStep);
+          } else {
+            this.complete();
+          }
+        },
+        
+        prev() {
+          this.currentStep--;
+          if (this.currentStep >= 0) {
+            this.showStep(this.currentStep);
+          }
+        },
+        
+        skip() {
+          this.cleanup();
+          chrome.storage.local.set({ onboarding_whatsapp_completed: true });
+        },
+        
+        complete() {
+          this.cleanup();
+          chrome.storage.local.set({ onboarding_whatsapp_completed: true });
+          this.showCompletionMessage();
+        },
+        
+        cleanup() {
+          if (this.overlay) this.overlay.remove();
+          if (this.tooltip) this.tooltip.remove();
+          if (this.shadowRoot) {
+            this.shadowRoot.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+          }
+        },
+        
+        restart() {
+          chrome.storage.local.set({ onboarding_whatsapp_completed: false }, () => {
+            this.start();
+          });
+        },
+        
+        showCompletionMessage() {
+          const modal = document.createElement('div');
+          modal.className = 'tour-complete-modal';
+          modal.innerHTML = \\\`
+            <div class="tour-complete-icon">✅</div>
+            <h3 class="tour-complete-title">Pronto!</h3>
+            <p class="tour-complete-text">
+              Você está preparado para usar o WhatsHybrid Lite! 
+              Explore as abas e comece a usar a IA nos seus atendimentos.
+            </p>
+            <div class="tour-actions">
+              <button class="tour-btn tour-btn-secondary tour-restart">Ver tour novamente</button>
+              <button class="tour-btn tour-btn-primary tour-complete-close">Começar a usar</button>
+            </div>
+          \\\`;
+          
+          this.shadowRoot.appendChild(modal);
+          
+          const closeBtn = modal.querySelector('.tour-complete-close');
+          const restartBtn = modal.querySelector('.tour-restart');
+          
+          closeBtn.addEventListener('click', () => modal.remove());
+          restartBtn.addEventListener('click', () => {
+            modal.remove();
+            this.restart();
+          });
+          
+          setTimeout(() => {
+            if (modal.parentElement) modal.remove();
+          }, 8000);
+        },
+        
+        addHelpButton() {
+          if (!this.shadowRoot) return;
+          const panel = this.shadowRoot.querySelector('.panel');
+          if (!panel) return;
+          if (this.shadowRoot.querySelector('.tour-help-btn')) return;
+          
+          const helpBtn = document.createElement('button');
+          helpBtn.className = 'tour-help-btn';
+          helpBtn.innerHTML = '?';
+          helpBtn.title = 'Ver tour novamente';
+          helpBtn.addEventListener('click', () => this.restart());
+          
+          this.shadowRoot.appendChild(helpBtn);
+        }
+      };
+      
+      if (typeof window !== 'undefined') {
+        window.WhatsAppTour = WhatsAppTour;
+      }
+    \`;
   }
 
   // -------------------------

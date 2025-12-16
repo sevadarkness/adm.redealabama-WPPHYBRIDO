@@ -1,0 +1,265 @@
+/* Tour Overlay - WhatsApp Web */
+.tour-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 9998;
+  pointer-events: none;
+}
+
+/* Tour Highlight */
+.tour-highlight {
+  position: relative;
+  z-index: 9999 !important;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.5), 0 0 20px rgba(139, 92, 246, 0.3) !important;
+  border-radius: 14px;
+  pointer-events: auto;
+}
+
+/* Tour Tooltip */
+.tour-tooltip {
+  position: absolute;
+  z-index: 10000;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 16px;
+  padding: 16px;
+  width: 280px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  animation: tooltipFadeIn 0.3s ease;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tour-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.tour-step-indicator {
+  font-size: 11px;
+  color: #8b5cf6;
+  font-weight: 600;
+}
+
+.tour-close {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+
+.tour-close:hover {
+  color: #fff;
+}
+
+.tour-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 8px 0;
+}
+
+.tour-content {
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.5;
+  margin: 0 0 16px 0;
+}
+
+/* Progress Dots */
+.tour-progress {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.tour-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.tour-dot.active {
+  background: #8b5cf6;
+  transform: scale(1.2);
+}
+
+.tour-dot.completed {
+  background: #22c55e;
+}
+
+/* Action Buttons */
+.tour-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.tour-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.tour-btn-primary {
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  color: #fff;
+}
+
+.tour-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+.tour-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #aaa;
+}
+
+.tour-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* Tooltip Arrow */
+.tour-tooltip::before {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: inherit;
+  border-right: none;
+  border-bottom: none;
+  transform: rotate(45deg);
+  z-index: -1;
+}
+
+.tour-tooltip.position-bottom::before {
+  top: -7px;
+  left: 50%;
+  margin-left: -6px;
+}
+
+.tour-tooltip.position-top::before {
+  bottom: -7px;
+  left: 50%;
+  margin-left: -6px;
+  transform: rotate(225deg);
+}
+
+.tour-tooltip.position-left::before {
+  right: -7px;
+  top: 50%;
+  margin-top: -6px;
+  transform: rotate(135deg);
+}
+
+.tour-tooltip.position-right::before {
+  left: -7px;
+  top: 50%;
+  margin-top: -6px;
+  transform: rotate(-45deg);
+}
+
+.tour-tooltip.position-center::before {
+  display: none;
+}
+
+/* Completion Modal */
+.tour-complete-modal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10001;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 20px;
+  padding: 24px;
+  text-align: center;
+  width: 300px;
+  animation: modalPop 0.4s ease;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes modalPop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.tour-complete-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.tour-complete-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #22c55e;
+  margin-bottom: 8px;
+}
+
+.tour-complete-text {
+  font-size: 13px;
+  color: #aaa;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+/* Help Button (para rever o tour) */
+.tour-help-btn {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(139, 92, 246, 0.2);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: #8b5cf6;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 1000;
+}
+
+.tour-help-btn:hover {
+  background: rgba(139, 92, 246, 0.3);
+  transform: scale(1.1);
+}

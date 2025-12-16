@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>WhatsHybrid Lite</title>
   <link rel="stylesheet" href="popup.css" />
+  <link rel="stylesheet" href="onboarding.css" />
 </head>
 <body>
   <div class="wrap">
@@ -217,6 +218,16 @@
     </footer>
   </div>
 
+  <!-- Botão de ajuda para rever tour -->
+  <button class="tour-help-btn" id="tourHelpBtn" title="Ver tour novamente">?</button>
+
   <script src="popup.js"></script>
+  <script src="onboarding.js"></script>
+  <script>
+    // Event listener para o botão de ajuda
+    document.getElementById('tourHelpBtn').addEventListener('click', () => {
+      PopupTour.restart();
+    });
+  </script>
 </body>
 </html>

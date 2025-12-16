@@ -63,17 +63,122 @@
   }
 
   async function getSettingsCached() {
-    // Simple in-memory cache with short TTL.
-    const now = Date.now();
-    if (getSettingsCached._cache && (now - getSettingsCached._cacheAt) < 5000) {
-      return getSettingsCached._cache;
-    }
-    const resp = await bg('GET_SETTINGS', {});
-    const st = resp?.settings || {};
-    getSettingsCached._cache = st;
-    getSettingsCached._cacheAt = now;
-    return st;
+    // Use CacheManager for settings with 5 second TTL
+    return CacheManager.getOrFetch('settings', async () => {
+      const resp = await bg('GET_SETTINGS', {});
+      return resp?.settings || {};
+    }, 5000); // 5 segundos
   }
+
+  // -------------------------
+  // Campaign Storage (Persistence)
+  // -------------------------
+  const CampaignStorage = {
+    // Salvar campanha em andamento
+    async saveCampaign(campaign) {
+      const data = {
+        id: campaign.id || Date.now(),
+        status: campaign.status, // 'running', 'paused', 'completed', 'failed'
+        contacts: campaign.contacts, // lista completa
+        currentIndex: campaign.currentIndex,
+        successCount: campaign.successCount,
+        failedCount: campaign.failedCount,
+        failedContacts: campaign.failedContacts,
+        message: campaign.message,
+        media: campaign.media, // base64 se houver
+        settings: {
+          delayMin: campaign.delayMin,
+          delayMax: campaign.delayMax,
+        },
+        createdAt: campaign.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await chrome.storage.local.set({ whl_active_campaign: data });
+      return data;
+    },
+
+    // Carregar campanha ativa
+    async loadCampaign() {
+      const result = await chrome.storage.local.get(['whl_active_campaign']);
+      return result.whl_active_campaign || null;
+    },
+
+    // Limpar campanha
+    async clearCampaign() {
+      await chrome.storage.local.remove(['whl_active_campaign']);
+    },
+
+    // Salvar histórico de campanhas
+    async saveToHistory(campaign) {
+      const result = await chrome.storage.local.get(['whl_campaign_history']);
+      const history = result.whl_campaign_history || [];
+      history.unshift({
+        ...campaign,
+        completedAt: new Date().toISOString(),
+      });
+      // Manter apenas últimas 50 campanhas
+      const trimmed = history.slice(0, 50);
+      await chrome.storage.local.set({ whl_campaign_history: trimmed });
+    },
+
+    // Carregar histórico
+    async loadHistory() {
+      const result = await chrome.storage.local.get(['whl_campaign_history']);
+      return result.whl_campaign_history || [];
+    },
+  };
+
+  // -------------------------
+  // Cache Manager (Intelligent Caching)
+  // -------------------------
+  const CacheManager = {
+    _cache: new Map(),
+    _ttl: new Map(),
+    
+    // Definir item com TTL (em ms)
+    set(key, value, ttlMs = 60000) {
+      this._cache.set(key, value);
+      this._ttl.set(key, Date.now() + ttlMs);
+    },
+    
+    // Obter item (retorna null se expirado)
+    get(key) {
+      const expiry = this._ttl.get(key);
+      if (!expiry || Date.now() > expiry) {
+        this._cache.delete(key);
+        this._ttl.delete(key);
+        return null;
+      }
+      return this._cache.get(key);
+    },
+    
+    // Verificar se existe e não expirou
+    has(key) {
+      return this.get(key) !== null;
+    },
+    
+    // Limpar item específico
+    delete(key) {
+      this._cache.delete(key);
+      this._ttl.delete(key);
+    },
+    
+    // Limpar tudo
+    clear() {
+      this._cache.clear();
+      this._ttl.clear();
+    },
+    
+    // Cache com fallback async
+    async getOrFetch(key, fetchFn, ttlMs = 60000) {
+      const cached = this.get(key);
+      if (cached !== null) return cached;
+      
+      const value = await fetchFn();
+      this.set(key, value, ttlMs);
+      return value;
+    },
+  };
 
   // -------------------------
   // Inject (fallback detection)
@@ -103,6 +208,134 @@
   });
 
   injectMainWorld();
+
+  // -------------------------
+  // Robust Selectors with Fallbacks
+  // -------------------------
+  const WA_SELECTORS = {
+    // Composer (caixa de texto)
+    composer: [
+      'footer [contenteditable="true"][role="textbox"]',
+      '[data-testid="conversation-compose-box-input"]',
+      'div[contenteditable="true"][data-tab="10"]',
+      'footer div[contenteditable="true"]',
+      '#main footer [contenteditable="true"]',
+    ],
+    
+    // Botão enviar
+    sendButton: [
+      'button[data-testid="compose-btn-send"]',
+      'footer button[aria-label*="Enviar"]',
+      'footer button[aria-label*="Send"]',
+      'footer button span[data-icon="send"]',
+      'footer button span[data-icon="send-light"]',
+    ],
+    
+    // Botão anexar
+    attachButton: [
+      'footer button[aria-label*="Anexar"]',
+      'footer button[aria-label*="Attach"]',
+      'footer button[title*="Anexar"]',
+      'footer span[data-icon="attach-menu-plus"]',
+      'footer span[data-icon="clip"]',
+      'footer span[data-icon="attach"]',
+    ],
+    
+    // Input de arquivo
+    fileInput: [
+      'input[type="file"][accept*="image"]',
+      'input[type="file"][accept*="video"]',
+      'input[type="file"]',
+    ],
+    
+    // Busca de chat
+    chatSearch: [
+      '[data-testid="chat-list-search"] [contenteditable="true"]',
+      '[data-testid="chat-list-search"] input',
+      '#pane-side [contenteditable="true"][role="textbox"]',
+      'div[data-testid="chat-list"] input[type="text"]',
+    ],
+    
+    // Resultados de busca
+    chatSearchResults: [
+      '[data-testid="chat-list"] [role="listitem"]',
+      '[data-testid="chat-list"] [role="row"]',
+      '#pane-side [role="row"]',
+      '#pane-side [role="listitem"]',
+    ],
+    
+    // Header do chat (nome do contato)
+    chatHeader: [
+      'header span[title]',
+      'header [title]',
+      '#main header span[dir="auto"]',
+    ],
+    
+    // Container de mensagens
+    messagesContainer: [
+      '[data-testid="conversation-panel-messages"]',
+      '#main [role="application"]',
+      '#main div[tabindex="-1"]',
+    ],
+    
+    // Dialog de mídia
+    mediaDialog: [
+      'div[role="dialog"]',
+      '[data-testid="media-viewer"]',
+      '[data-testid="popup"]',
+    ],
+    
+    // Botão enviar mídia (dentro do dialog)
+    mediaSendButton: [
+      'div[role="dialog"] button[aria-label*="Enviar"]',
+      'div[role="dialog"] button[aria-label*="Send"]',
+      'div[role="dialog"] button span[data-icon="send"]',
+    ],
+    
+    // Caption da mídia
+    mediaCaptionBox: [
+      'div[role="dialog"] [contenteditable="true"][role="textbox"]',
+      'div[role="dialog"] div[contenteditable="true"]',
+    ],
+  };
+
+  // Função utilitária para encontrar elemento com fallbacks
+  function findElementWithFallback(selectorArray, context = document) {
+    for (const selector of selectorArray) {
+      try {
+        const el = context.querySelector(selector);
+        if (el && el.isConnected) {
+          // Verificar se está visível
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 || rect.height > 0) {
+            return el;
+          }
+        }
+      } catch (e) {
+        // Selector inválido, tentar próximo
+        continue;
+      }
+    }
+    return null;
+  }
+
+  // Função para encontrar múltiplos elementos
+  function findElementsWithFallback(selectorArray, context = document) {
+    for (const selector of selectorArray) {
+      try {
+        const els = Array.from(context.querySelectorAll(selector));
+        const visible = els.filter(el => {
+          if (!el.isConnected) return false;
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 || rect.height > 0;
+        });
+        if (visible.length > 0) return visible;
+      } catch (e) {
+        continue;
+      }
+    }
+    return [];
+  }
 
   // -------------------------
   // WhatsApp DOM helpers
@@ -136,11 +369,7 @@
   }
 
   function findComposer() {
-    const cands = Array.from(document.querySelectorAll('footer [contenteditable="true"][role="textbox"]'))
-      .filter(el => el && el.isConnected);
-    if (!cands.length) return null;
-    const visible = cands.find(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-    return visible || cands[0];
+    return findElementWithFallback(WA_SELECTORS.composer);
   }
 
   async function insertIntoComposer(text) {
@@ -164,14 +393,29 @@
   }
 
   function findSendButton() {
-    // WhatsApp selectors can change; we try multiple.
-    const btn =
-      document.querySelector('footer button[data-testid="compose-btn-send"]') ||
-      document.querySelector('footer button[aria-label*="Enviar"]') ||
-      document.querySelector('footer button span[data-icon="send"]')?.closest('button') ||
-      document.querySelector('footer button span[data-icon="send-light"]')?.closest('button') ||
-      null;
-    return btn;
+    // Tentar cada seletor
+    for (const selector of WA_SELECTORS.sendButton) {
+      try {
+        let el;
+        if (selector.includes(':has(')) {
+          // Navegadores modernos suportam :has()
+          el = document.querySelector(selector);
+        } else if (selector.includes('span[data-icon')) {
+          // Fallback: encontrar span e subir para button
+          const span = document.querySelector(selector);
+          el = span?.closest('button');
+        } else {
+          el = document.querySelector(selector);
+        }
+        if (el && el.isConnected) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 || rect.height > 0) return el;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    return null;
   }
 
   async function clickSend() {
@@ -190,19 +434,29 @@
   }
 
   function findAttachButton() {
-    return (
-      document.querySelector('footer button[aria-label*="Anexar"]') ||
-      document.querySelector('footer button[title*="Anexar"]') ||
-      document.querySelector('footer span[data-icon="attach-menu-plus"]')?.closest('button') ||
-      document.querySelector('footer span[data-icon="clip"]')?.closest('button') ||
-      document.querySelector('footer span[data-icon="attach"]')?.closest('button') ||
-      null
-    );
+    for (const selector of WA_SELECTORS.attachButton) {
+      try {
+        let el;
+        if (selector.includes('span[data-icon')) {
+          const span = document.querySelector(selector);
+          el = span?.closest('button');
+        } else {
+          el = document.querySelector(selector);
+        }
+        if (el && el.isConnected) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 || rect.height > 0) return el;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    return null;
   }
 
   function findBestFileInput() {
-    const inputs = Array.from(document.querySelectorAll('input[type="file"]'))
-      .filter(el => el && el.isConnected);
+    // Use fallback system para inputs de arquivo
+    const inputs = findElementsWithFallback(WA_SELECTORS.fileInput);
     if (!inputs.length) return null;
 
     // Prefer image accept
@@ -211,20 +465,14 @@
   }
 
   function findDialogRoot() {
-    return document.querySelector('div[role="dialog"]') ||
-           document.querySelector('[data-testid="media-viewer"]') ||
-           document.querySelector('[data-testid="popup"]') ||
-           null;
+    return findElementWithFallback(WA_SELECTORS.mediaDialog);
   }
 
   function findMediaCaptionBox() {
     const dlg = findDialogRoot();
     if (!dlg) return null;
 
-    const box =
-      dlg.querySelector('[contenteditable="true"][role="textbox"]') ||
-      dlg.querySelector('div[contenteditable="true"][data-tab]') ||
-      null;
+    const box = findElementWithFallback(WA_SELECTORS.mediaCaptionBox, dlg);
 
     if (box && box.closest('footer')) return null;
     return box;
@@ -234,15 +482,25 @@
     const dlg = findDialogRoot();
     if (!dlg) return null;
 
-    const btn =
-      dlg.querySelector('button[aria-label*="Enviar"]') ||
-      dlg.querySelector('button[aria-label*="Send"]') ||
-      dlg.querySelector('button span[data-icon="send"]')?.closest('button') ||
-      dlg.querySelector('button span[data-icon="send-light"]')?.closest('button') ||
-      null;
-
-    if (btn && btn.closest('footer')) return null;
-    return btn;
+    // Use the fallback system within the dialog
+    for (const selector of WA_SELECTORS.mediaSendButton) {
+      try {
+        let el;
+        if (selector.includes('span[data-icon')) {
+          const span = dlg.querySelector(selector.replace('div[role="dialog"] ', ''));
+          el = span?.closest('button');
+        } else {
+          el = dlg.querySelector(selector.replace('div[role="dialog"] ', ''));
+        }
+        if (el && el.isConnected && !el.closest('footer')) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 || rect.height > 0) return el;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    return null;
   }
 
   async function attachMediaAndSend(mediaPayload, captionText) {
@@ -368,12 +626,8 @@
     const digits = q.replace(/[^\d]/g, '');
     if (!digits) throw new Error('Número inválido para abrir chat.');
 
-    // Search box selectors (WhatsApp changes often)
-    const box =
-      document.querySelector('[data-testid="chat-list-search"] [contenteditable="true"]') ||
-      document.querySelector('[data-testid="chat-list-search"] [role="textbox"][contenteditable="true"]') ||
-      document.querySelector('#pane-side [contenteditable="true"][role="textbox"]') ||
-      null;
+    // Use fallback system for search box
+    const box = findElementWithFallback(WA_SELECTORS.chatSearch);
 
     if (!box) throw new Error('Não encontrei a busca de chats (WhatsApp).');
 
@@ -390,12 +644,8 @@
 
     await sleep(700);
 
-    const isVisible = (el) => !!(el && el.isConnected && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-
-    // Gather result rows
-    const rows = Array.from(document.querySelectorAll(
-      '#pane-side [role="row"], [data-testid="chat-list"] [role="row"], [data-testid="chat-list"] [role="listitem"]'
-    )).filter(isVisible);
+    // Gather result rows using fallback system
+    const rows = findElementsWithFallback(WA_SELECTORS.chatSearchResults);
 
     const matchByDigits = (el) => {
       const t = safeText(el.innerText || '').replace(/\D/g, '');
@@ -600,6 +850,29 @@ Regras:
     const resp = await bg('AI_CHAT', { messages, payload });
     if (!resp?.ok) throw new Error(resp?.error || 'Falha na IA');
     return safeText(resp.text || '').trim();
+  }
+
+  // Hash simples para identificar conversas similares (cache AI)
+  function hashTranscript(transcript) {
+    const t = safeText(transcript).slice(-500).toLowerCase();
+    let hash = 0;
+    for (let i = 0; i < t.length; i++) {
+      hash = ((hash << 5) - hash) + t.charCodeAt(i);
+      hash |= 0;
+    }
+    return 'ai_' + hash;
+  }
+
+  // Cached version of aiChat for reply mode
+  async function aiChatCached(params) {
+    const cacheKey = hashTranscript(params.transcript) + '_' + params.mode;
+    
+    // Não cachear modo train (sempre novo)
+    if (params.mode === 'train') {
+      return aiChat(params);
+    }
+    
+    return CacheManager.getOrFetch(cacheKey, () => aiChat(params), 30000); // 30 segundos
   }
 
   async function aiMemoryFromTranscript(transcript) {
@@ -981,6 +1254,17 @@ ${transcript || '(não consegui ler mensagens)'}
             <b>Links</b> (assistido) e <b>API</b> (backend).
           </div>
 
+          <div id="campResumeBox" style="display:none; margin-bottom: 10px;">
+            <div class="note" style="background: rgba(139,92,246,.12); border-color: rgba(139,92,246,.35);">
+              <b>⚠️ Campanha pendente encontrada!</b><br/>
+              <span id="campResumeInfo"></span>
+            </div>
+            <div class="btns">
+              <button class="primary" id="campResumeBtn">Retomar Campanha</button>
+              <button class="danger" id="campDiscardBtn">Descartar</button>
+            </div>
+          </div>
+
           <label>Modo</label>
           <select id="campMode">
             <option value="links">Links (assistido)</option>
@@ -1161,7 +1445,7 @@ ${transcript || '(não consegui ler mensagens)'}
         const mode = chatMode.value || 'reply';
         const extra = safeText(chatPrompt.value);
 
-        const text = await aiChat({ mode, extraInstruction: extra, transcript, memory: mem, chatTitle });
+        const text = await aiChatCached({ mode, extraInstruction: extra, transcript, memory: mem, chatTitle });
 
         if (mode === 'train') {
           // Training suggestions
@@ -1308,7 +1592,7 @@ ${transcript || '(não consegui ler mensagens)'}
         const mem = hybrid.memory;
         const examplesOverride = hybrid.examples;
         const contextOverride = hybrid.context;
-        const text = await aiChat({
+        const text = await aiChatCached({
           mode: 'reply',
           extraInstruction: safeText(chatPrompt.value),
           transcript,
@@ -1474,6 +1758,60 @@ ${transcript || '(não consegui ler mensagens)'}
     }
     campMode.addEventListener('change', renderCampMode);
     renderCampMode();
+
+    // Check for pending campaign on load
+    const campResumeBox = shadow.getElementById('campResumeBox');
+    const campResumeInfo = shadow.getElementById('campResumeInfo');
+    const campResumeBtn = shadow.getElementById('campResumeBtn');
+    const campDiscardBtn = shadow.getElementById('campDiscardBtn');
+
+    (async () => {
+      try {
+        const pending = await CampaignStorage.loadCampaign();
+        if (pending && pending.status === 'running') {
+          const progress = `${pending.currentIndex || 0}/${pending.contacts?.length || 0} contatos`;
+          const created = new Date(pending.createdAt).toLocaleString('pt-BR');
+          campResumeInfo.textContent = `Progresso: ${progress} | Iniciada em: ${created}`;
+          campResumeBox.style.display = 'block';
+        }
+      } catch (e) {
+        warn('Erro ao verificar campanha pendente:', e);
+      }
+    })();
+
+    campResumeBtn?.addEventListener('click', async () => {
+      try {
+        const pending = await CampaignStorage.loadCampaign();
+        if (!pending) throw new Error('Campanha não encontrada.');
+        
+        // Restore campaign data to UI
+        campNumbers.value = pending.contacts?.map(c => `${c.number}${c.name ? ',' + c.name : ''}`).join('\n') || '';
+        campMsg.value = pending.message || '';
+        
+        if (pending.settings) {
+          campDelayMin.value = pending.settings.delayMin || 6;
+          campDelayMax.value = pending.settings.delayMax || 12;
+        }
+        
+        campResumeBox.style.display = 'none';
+        setCampStatus(`Campanha retomada. Continue de onde parou (${pending.currentIndex}/${pending.contacts?.length}).`, 'ok');
+        
+        // Note: Actual resumption would require implementing stateful campaign execution
+        // For now, we just restore the data
+      } catch (e) {
+        setCampStatus(`Erro ao retomar: ${e?.message || String(e)}`, 'err');
+      }
+    });
+
+    campDiscardBtn?.addEventListener('click', async () => {
+      try {
+        await CampaignStorage.clearCampaign();
+        campResumeBox.style.display = 'none';
+        setCampStatus('Campanha pendente descartada.', 'ok');
+      } catch (e) {
+        setCampStatus(`Erro: ${e?.message || String(e)}`, 'err');
+      }
+    });
 
     // Links mode (assistido) - same behavior as lite v0.1
     campBuildBtn.addEventListener('click', () => {

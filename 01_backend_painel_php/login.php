@@ -222,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <?php if (!empty($erro)): ?>
         <div class="alert alert-danger alert-dismissible fade show mb-2 p-2" role="alert">
-            <div><?= $erro ?></div>
+            <div><?= htmlspecialchars($erro, ENT_QUOTES, 'UTF-8') ?></div>
             <button type="button" class="btn-close" data-bs-dismiss="alert" style="filter: invert(1); transform: scale(0.8);"></button>
         </div>
         <?php endif; ?>

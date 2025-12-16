@@ -188,6 +188,22 @@ PROMPT;
 }
 
 /**
+ * Sanitiza conteúdo de snippets LLM para prevenir prompt injection.
+ * Remove tentativas de escapar do contexto do sistema.
+ * 
+ * @param string $content Conteúdo do snippet
+ * @return string Conteúdo sanitizado
+ */
+function sanitize_llm_snippet(string $content): string
+{
+    // Remove tentativas de escapar do contexto com marcadores de role (várias variações)
+    $content = preg_replace('/\b(system|assistant|user|role)\s*[:=]|<\|(system|assistant|user)|```\s*(system|assistant|user)/i', '[FILTERED]:', $content);
+    // Remove delimitadores que podem quebrar o contexto
+    $content = str_replace(['```', '---', '~~~'], '', $content);
+    return trim($content);
+}
+
+/**
  * Resolve o system prompt dinâmico com base nas configurações e no contexto da mensagem.
  * - Se llm_system_prompt estiver preenchido, usa como base.
  * - Caso contrário, usa whatsapp_bot_default_system_prompt().
@@ -226,7 +242,7 @@ function whatsapp_bot_resolve_system_prompt(array $settings, string $mensagemCli
         $stmt = $pdo->prepare($sql);
         $stmt->execute($tipos);
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            $snippets[] = (string)$row['conteudo'];
+            $snippets[] = sanitize_llm_snippet((string)$row['conteudo']);
         }
     } catch (Throwable $e) {
         if (function_exists('log_app_event')) {
@@ -316,7 +332,7 @@ function whatsapp_bot_chamar_llm(string $mensagemCliente, array $historico, arra
 {
     $settings = LlmRouter::normalize($settings);
     $provider = $settings['llm_provider'] ?? 'openai';
-    $model    = $settings['llm_model'] ?? 'gpt-4.1-mini';
+    $model    = $settings['llm_model'] ?? 'gpt-4o-mini';
     $temp     = isset($settings['llm_temperature']) ? (float)$settings['llm_temperature'] : 0.2;
     $maxTok   = isset($settings['llm_max_tokens']) ? (int)$settings['llm_max_tokens'] : 512;
     $system   = whatsapp_bot_resolve_system_prompt($settings, $mensagemCliente);

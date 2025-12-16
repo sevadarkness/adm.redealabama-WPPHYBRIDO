@@ -17,6 +17,6 @@ if (!function_exists('alabama_csp_nonce_attr')) {
         if (!defined('ALABAMA_CSP_NONCE')) {
             return '';
         }
-        return 'nonce="' . ALABAMA_CSP_NONCE . '"';
+        return 'nonce="' . htmlspecialchars(ALABAMA_CSP_NONCE, ENT_QUOTES, 'UTF-8') . '"';
     }
 }

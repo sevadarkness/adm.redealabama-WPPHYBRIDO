@@ -15,6 +15,10 @@ if (!isset($_SESSION['usuario_id'])) {
 // Configurando erro para PDO
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+// Inicializa variáveis ANTES do try/catch para evitar undefined em caso de erro
+$produtos_grouped = [];
+$acesso_restrito = true; // Default seguro
+
 try {
     // Obtendo os dados do usuário
     $usuario_id = $_SESSION['usuario_id'];
@@ -29,7 +33,6 @@ try {
     $produtos = $stmt_produtos->fetchAll();
 
     // Organizando os produtos em um array
-    $produtos_grouped = [];
     foreach ($produtos as $produto) {
         $produtos_grouped[$produto['id']]['nome'] = $produto['nome'];
         $produtos_grouped[$produto['id']]['preco'] = $produto['preco'];
@@ -98,6 +101,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_venda'])) {
             throw new Exception("Estoque insuficiente para este sabor!");
         }
 
+        // Inicia transação para garantir atomicidade das operações de venda
+        $pdo->beginTransaction();
+
         // Registrando a venda
         $stmt_venda = (new \RedeAlabama\Repositories\Screens\NovaVendaRepository($pdo))->prepare_4120();
         $stmt_venda->execute([ 
@@ -120,6 +126,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_venda'])) {
             (new \RedeAlabama\Repositories\Screens\NovaVendaRepository($pdo))->prepare_4937()->execute([$produto_id, $sabor_id, $usuario_id, $motivo_avariado, $preco_produto]);
         }
 
+        // Confirma transação
+        $pdo->commit();
+
         $_SESSION['mensagem'] = $produto_avariado 
             ? "Baixa registrada! Gerência notificada." 
             : "Venda concluída com sucesso!";
@@ -130,6 +139,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_venda'])) {
         exit;
 
     } catch (Exception $e) {
+        // Rollback em caso de erro
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         $_SESSION['mensagem'] = "Erro: " . $e->getMessage();
         $_SESSION['tipo_mensagem'] = "danger";
         header("Location: nova_venda.php");

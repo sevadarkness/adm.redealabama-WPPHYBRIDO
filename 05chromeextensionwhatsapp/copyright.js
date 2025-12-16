@@ -1,4 +1,3 @@
-<?php
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════╗
  * ║                                                                           ║
@@ -20,33 +19,26 @@
  * ║   e sujeito a penalidades legais conforme Lei 9.609/98.                   ║
  * ║                                                                           ║
  * ║   Fingerprint: RA-2024-WPPHYBRIDO-ALABAMA                                 ║
- * ║   Protegido por: Lei 9.609/98 | Lei 9.610/98 | Convenção de Berna         ║
  * ║                                                                           ║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
-declare(strict_types=1);
+// Fingerprint de Rastreamento
+const RA_FINGERPRINT = {
+    owner: 'Rede Alabama',
+    project: 'WPPHYBRIDO',
+    fingerprint: 'RA-2024-WPPHYBRIDO-ALABAMA',
+    copyright: '© 2024 Rede Alabama. Todos os direitos reservados.',
+    timestamp: Date.now(),
+    trace: btoa(JSON.stringify({
+        fp: 'RA-WPPHYBRIDO-2024',
+        ts: Date.now(),
+        id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36),
+        owner: 'redealabama'
+    }))
+};
 
-// DirectoryIndex aponta para index.php; para evitar duas telas de login diferentes
-// (e inconsistência de sessão/cookies), este index apenas redireciona.
-
-require_once __DIR__ . '/session_bootstrap.php';
-
-// Se já estiver autenticado, envia para a home correta
-if (!empty($_SESSION['usuario_id'])) {
-    $nivel = (string)($_SESSION['nivel_acesso'] ?? '');
-
-    if ($nivel === 'Administrador') {
-        header('Location: painel_admin.php');
-    } elseif ($nivel === 'Gerente') {
-        header('Location: painel_gerente.php');
-    } else {
-        // Vendedor / outros perfis
-        header('Location: painel_vendedor_hoje.php');
-    }
-    exit;
+// Log de proteção (apenas em dev)
+if (typeof console !== 'undefined') {
+    console.log('%c🔒 ' + RA_FINGERPRINT.copyright, 'color: #8b5cf6; font-weight: bold;');
 }
-
-// Não autenticado -> tela de login principal
-header('Location: login.php');
-exit;

@@ -1,4 +1,35 @@
-# RedeAlabama_Platform
+# 🔒 WhatsApp Híbrido - Sistema de Atendimento Inteligente
+
+![License](https://img.shields.io/badge/License-Proprietary-red)
+![Copyright](https://img.shields.io/badge/©-Rede%20Alabama%202024-purple)
+![Protected](https://img.shields.io/badge/Protected-Lei%209.609%2F98-blue)
+
+---
+
+## ⚠️ AVISO LEGAL - PROPRIEDADE INTELECTUAL
+
+```
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                                                                           ║
+║   © 2024 REDE ALABAMA - TODOS OS DIREITOS RESERVADOS                      ║
+║                                                                           ║
+║   Este software é PROPRIEDADE EXCLUSIVA da Rede Alabama.                  ║
+║                                                                           ║
+║   ❌ PROIBIDO copiar, distribuir ou modificar sem autorização             ║
+║   ❌ PROIBIDO uso comercial não licenciado                                ║
+║   ❌ PROIBIDO engenharia reversa                                          ║
+║                                                                           ║
+║   Protegido por: Lei 9.609/98 | Lei 9.610/98 | Convenção de Berna         ║
+║   Fingerprint: RA-2024-WPPHYBRIDO-ALABAMA                                 ║
+║                                                                           ║
+║   Violações serão processadas civil e criminalmente.                      ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+## Sobre a Plataforma
 
 Este pacote é a plataforma **Rede Alabama**, reorganizada para ficar **claramente separada por responsabilidade** (backend/painel, motores de automação WhatsApp, IA/LLM, IA de marketing, extensão Chrome, deploy/infra, docs/SDKs e extras).
 

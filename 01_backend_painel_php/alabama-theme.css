@@ -482,3 +482,93 @@ footer {
 .btn-close:hover {
     color: var(--al-text-primary);
 }
+
+/* ========================================
+   CHART CARDS - GRÁFICOS INTERATIVOS
+   ======================================== */
+
+/* Chart Cards */
+.chart-card {
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(22, 33, 62, 0.95) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    transition: var(--al-transition);
+}
+
+.chart-card:hover {
+    border-color: rgba(139, 92, 246, 0.4);
+    box-shadow: var(--al-shadow-xl);
+}
+
+.chart-card .card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.08));
+}
+
+.chart-card .card-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.chart-card .card-body {
+    padding: 20px;
+    min-height: 300px;
+}
+
+.chart-card .card-footer {
+    padding: 12px 20px;
+    background: rgba(0, 0, 0, 0.2);
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.chart-card .stat {
+    font-size: 13px;
+    color: #aaa;
+}
+
+.chart-card .stat.success {
+    color: #22c55e;
+}
+
+.chart-card .stat.danger {
+    color: #ef4444;
+}
+
+.chart-card .stat.warning {
+    color: #eab308;
+}
+
+/* No data message for charts */
+.chart-no-data {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #888;
+    text-align: center;
+    z-index: 10;
+}
+
+.chart-no-data i {
+    opacity: 0.3;
+    margin-bottom: 1rem;
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+    .chart-card .card-body {
+        min-height: 250px;
+    }
+    
+    .chart-card .card-footer {
+        flex-direction: column;
+        gap: 8px;
+    }
+}

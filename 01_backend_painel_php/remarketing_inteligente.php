@@ -2,6 +2,34 @@
 // Remarketing Inteligente – apenas Administrador/Gerente
 require_once __DIR__ . '/rbac.php';
 require_role(array('Administrador', 'Gerente'));
+require_once __DIR__ . '/db_config.php';
+
+// Buscar estatísticas das campanhas
+$campaignStats = [
+    'entregues' => 0,
+    'falhas' => 0,
+    'pendentes' => 0,
+];
+
+try {
+    $sql = "SELECT 
+                SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as entregues,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as falhas,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pendentes
+            FROM whatsapp_bulk_job_items
+            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+    
+    $stmt = $pdo->query($sql);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($result) {
+        $campaignStats['entregues'] = (int)($result['entregues'] ?? 0);
+        $campaignStats['falhas'] = (int)($result['falhas'] ?? 0);
+        $campaignStats['pendentes'] = (int)($result['pendentes'] ?? 0);
+    }
+} catch (Throwable $e) {
+    // Silently fail, keep default values
+}
 ?>
 
 <!DOCTYPE html>
@@ -834,6 +862,21 @@ require_role(array('Administrador', 'Gerente'));
                         <div class="rm-kpi-label">Dias médios até esgotar</div>
                         <div class="rm-kpi-value" id="rm-kpi-dias-restantes">0</div>
                         <div class="rm-kpi-sub">Janela média para reposição ideal (remarketing preventivo).</div>
+                    </div>
+                </div>
+
+                <!-- Campaign Status Chart -->
+                <div class="chart-card mt-3">
+                    <div class="card-header">
+                        <h3>📢 Status das Campanhas (Últimos 30 dias)</h3>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="campanhasChart" height="300"></canvas>
+                    </div>
+                    <div class="card-footer">
+                        <span class="stat success">✅ Entregues: <?= number_format($campaignStats['entregues']) ?></span>
+                        <span class="stat danger">❌ Falhas: <?= number_format($campaignStats['falhas']) ?></span>
+                        <span class="stat warning">⏳ Pendentes: <?= number_format($campaignStats['pendentes']) ?></span>
                     </div>
                 </div>
 
@@ -2250,10 +2293,83 @@ Quer garantir a reposição com uma condição especial?"></textarea>
         atualizarResumoSegmento();
         atualizarChartDias();
         carregarStatsEngajamento();
+        initCampaignStatusChart();
     }
 
     document.addEventListener('DOMContentLoaded', init);
 })();
+
+// Campaign Status Chart (Donut)
+function initCampaignStatusChart() {
+    const campanhasCtx = document.getElementById('campanhasChart');
+    if (!campanhasCtx) return;
+    
+    const entregues = <?= $campaignStats['entregues'] ?>;
+    const falhas = <?= $campaignStats['falhas'] ?>;
+    const pendentes = <?= $campaignStats['pendentes'] ?>;
+    const hasData = entregues + falhas + pendentes > 0;
+    
+    new Chart(campanhasCtx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+            labels: ['✅ Entregues', '❌ Falhas', '⏳ Pendentes'],
+            datasets: [{
+                data: hasData ? [entregues, falhas, pendentes] : [1],
+                backgroundColor: hasData ? [
+                    'rgba(34, 197, 94, 0.8)',   // Verde
+                    'rgba(239, 68, 68, 0.8)',   // Vermelho
+                    'rgba(234, 179, 8, 0.8)'    // Amarelo
+                ] : ['rgba(100, 100, 100, 0.2)'],
+                borderColor: hasData ? [
+                    'rgba(34, 197, 94, 1)',
+                    'rgba(239, 68, 68, 1)',
+                    'rgba(234, 179, 8, 1)'
+                ] : ['rgba(100, 100, 100, 0.3)'],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: {
+                    display: hasData,
+                    position: 'right',
+                    labels: { 
+                        color: '#fff',
+                        padding: 20,
+                        font: { size: 12 }
+                    }
+                },
+                tooltip: {
+                    enabled: hasData,
+                    callbacks: {
+                        label: (ctx) => {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : 0;
+                            return `${ctx.label}: ${ctx.raw} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Show message if no data
+    if (!hasData) {
+        showNoDataMessage(campanhasCtx.parentElement, 'chart-pie', 'Sem dados de campanhas nos últimos 30 dias');
+    }
+}
+
+// Helper function to show no-data message
+function showNoDataMessage(container, iconClass, message) {
+    const noDataMsg = document.createElement('div');
+    noDataMsg.className = 'chart-no-data';
+    noDataMsg.innerHTML = `<i class="fas fa-${iconClass} fa-3x"></i><br>${message}`;
+    container.style.position = 'relative';
+    container.appendChild(noDataMsg);
+}
 </script>
 </body>
 </html>

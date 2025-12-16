@@ -105,13 +105,31 @@ function get_campaign_metrics(PDO $pdo, string $period, string $startDate, strin
         $stmt = $pdo->query($sql);
         $messages = $stmt->fetch(PDO::FETCH_ASSOC);
         
+        // Messages by day (last 7 days)
+        $sql = "SELECT 
+                    DATE(created_at) as dia,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as enviadas
+                FROM whatsapp_bulk_job_items
+                WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                GROUP BY DATE(created_at)
+                ORDER BY dia ASC";
+        
+        $stmt = $pdo->query($sql);
+        $byDay = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
         return [
             'totals' => $totals ?: ['total_campaigns' => 0, 'active_campaigns' => 0, 'inactive_campaigns' => 0],
             'messages' => $messages ?: ['total_jobs' => 0, 'total_items' => 0, 'sent_count' => 0, 'failed_count' => 0, 'pending_count' => 0],
+            'by_day' => $byDay,
         ];
     } catch (Throwable $e) {
         log_app_event('dashboard', 'campaign_metrics_error', ['error' => $e->getMessage()]);
-        return ['totals' => [], 'messages' => []];
+        return [
+            'totals' => ['total_campaigns' => 0, 'active_campaigns' => 0, 'inactive_campaigns' => 0],
+            'messages' => ['total_jobs' => 0, 'total_items' => 0, 'sent_count' => 0, 'failed_count' => 0, 'pending_count' => 0],
+            'by_day' => [],
+        ];
     }
 }
 
@@ -513,6 +531,26 @@ include __DIR__ . '/menu_navegacao.php';
         </div>
     </div>
 
+    <!-- Campaign Messages Chart - Last 7 Days -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="chart-card">
+                <div class="card-header">
+                    <h3>📊 Mensagens de Campanha - Últimos 7 Dias</h3>
+                </div>
+                <div class="card-body">
+                    <canvas id="campaignMessagesChart" height="100"></canvas>
+                </div>
+                <div class="card-footer">
+                    <span class="stat">Total: <?= number_format((int)($campaignMetrics['messages']['total_items'] ?? 0)) ?></span>
+                    <span class="stat success">✅ Enviadas: <?= number_format((int)($campaignMetrics['messages']['sent_count'] ?? 0)) ?></span>
+                    <span class="stat danger">❌ Falhas: <?= number_format((int)($campaignMetrics['messages']['failed_count'] ?? 0)) ?></span>
+                    <span class="stat warning">⏳ Pendentes: <?= number_format((int)($campaignMetrics['messages']['pending_count'] ?? 0)) ?></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- WhatsApp Metrics Section -->
     <div class="row mb-4">
         <div class="col-12">
@@ -638,6 +676,104 @@ new Chart(llmCtx, {
         }
     }
 });
+
+// Campaign Messages Chart - Last 7 Days
+const campaignData = <?= json_encode($campaignMetrics['by_day'] ?? []) ?>;
+
+// Prepare data for last 7 days
+const last7Days = [];
+const today = new Date();
+for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const dayName = d.toLocaleDateString('pt-BR', { weekday: 'short' });
+    
+    const dataPoint = campaignData.find(item => item.dia === dateStr);
+    last7Days.push({
+        label: dayName.charAt(0).toUpperCase() + dayName.slice(1),
+        total: dataPoint ? parseInt(dataPoint.total) : 0,
+        enviadas: dataPoint ? parseInt(dataPoint.enviadas) : 0
+    });
+}
+
+const campaignLabels = last7Days.map(item => item.label);
+const campaignTotals = last7Days.map(item => item.total);
+const campaignEnviadas = last7Days.map(item => item.enviadas);
+
+const campaignCtx = document.getElementById('campaignMessagesChart').getContext('2d');
+
+// Check if there's any data
+const hasData = campaignTotals.some(val => val > 0);
+
+new Chart(campaignCtx, {
+    type: 'bar',
+    data: {
+        labels: campaignLabels,
+        datasets: [{
+            label: 'Total Mensagens',
+            data: campaignTotals,
+            backgroundColor: 'rgba(139, 92, 246, 0.7)',
+            borderColor: 'rgba(139, 92, 246, 1)',
+            borderWidth: 1,
+            borderRadius: 8
+        }, {
+            label: 'Enviadas com Sucesso',
+            data: campaignEnviadas,
+            backgroundColor: 'rgba(34, 197, 94, 0.7)',
+            borderColor: 'rgba(34, 197, 94, 1)',
+            borderWidth: 1,
+            borderRadius: 8
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: true,
+                labels: {
+                    color: '#fff',
+                    font: { size: 12 }
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: (ctx) => ctx.dataset.label + ': ' + ctx.raw
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    color: '#888'
+                },
+                grid: {
+                    color: 'rgba(255,255,255,0.1)'
+                }
+            },
+            x: {
+                ticks: { color: '#888' },
+                grid: { display: false }
+            }
+        }
+    }
+});
+
+// Show message if no data
+if (!hasData) {
+    showNoDataMessage(campaignCtx.canvas.parentElement, 'chart-bar', 'Sem dados de mensagens nos últimos 7 dias');
+}
+
+// Helper function to show no-data message
+function showNoDataMessage(container, iconClass, message) {
+    const noDataMsg = document.createElement('div');
+    noDataMsg.className = 'chart-no-data';
+    noDataMsg.innerHTML = `<i class="fas fa-${iconClass} fa-3x"></i><br>${message}`;
+    container.style.position = 'relative';
+    container.appendChild(noDataMsg);
+}
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

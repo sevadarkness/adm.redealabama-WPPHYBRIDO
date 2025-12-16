@@ -117,12 +117,12 @@ $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <tbody>
                     <?php foreach ($usuarios as $usuario): ?>
                         <tr>
-                            <td class="text-muted"><?php echo $usuario['id']; ?></td>
-                            <td><?php echo $usuario['nome']; ?></td>
-                            <td><?php echo $usuario['telefone']; ?></td>
+                            <td class="text-muted"><?php echo (int)$usuario['id']; ?></td>
+                            <td><?php echo htmlspecialchars($usuario['nome'], ENT_QUOTES, 'UTF-8'); ?></td>
+                            <td><?php echo htmlspecialchars($usuario['telefone'], ENT_QUOTES, 'UTF-8'); ?></td>
                             <td>
                                 <span class="badge badge-<?php echo $usuario['nivel_acesso'] === 'Administrador' ? 'primary' : 'secondary'; ?>">
-                                    <?php echo $usuario['nivel_acesso']; ?>
+                                    <?php echo htmlspecialchars($usuario['nivel_acesso'], ENT_QUOTES, 'UTF-8'); ?>
                                 </span>
                             </td>
                             <td class="action-buttons text-center">
@@ -152,6 +152,7 @@ $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         <h4 class="border-bottom pb-2 mt-5 mb-4">➕ Adicionar Novo Usuário</h4>
         <form action="painel_admin.php" method="POST">
+            <?= csrf_field(); ?>
             <div class="row">
                 <div class="col-md-6">
                     <div class="form-group">

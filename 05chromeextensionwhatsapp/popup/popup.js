@@ -178,28 +178,29 @@ el("btnTreinar")?.addEventListener("click", async () => {
       return;
     }
 
-    // Use LLM training hub endpoint
-    const apiUrl = backendUrl + "/llm_training_hub.php";
-
-    const formData = new FormData();
-    formData.append("action", "add");
-    formData.append("type", type);
-    formData.append("title", title);
-    formData.append("content", content);
+    // Use AI training API endpoint
+    const apiUrl = backendUrl + "/api/ai_training.php";
 
     const response = await fetch(apiUrl, {
       method: "POST",
-      body: formData,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: type,
+        title: title,
+        content: content,
+      }),
     });
 
     const result = await response.json();
 
-    if (result.ok || result.success) {
+    if (result.ok) {
       setTrainingStatus("✅ Treinamento adicionado com sucesso!", true);
       el("trainingTitle").value = "";
       el("trainingContent").value = "";
     } else {
-      setTrainingStatus("❌ " + (result.error || result.message || "Falha ao adicionar"), false);
+      setTrainingStatus("❌ " + (result.error?.message || "Falha ao adicionar"), false);
     }
   } catch (e) {
     setTrainingStatus("❌ Erro de conexão: " + String(e?.message || e), false);

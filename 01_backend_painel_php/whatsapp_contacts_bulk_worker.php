@@ -133,7 +133,7 @@ try {
 
         foreach ($items as $item) {
             $itemId = (int)$item['id'];
-            $toE164 = $item['to_e164'];
+            $toE164 = $item['to_phone_e164'] ?? $item['to_e164'] ?? '';
 
             try {
                 $ok = true;

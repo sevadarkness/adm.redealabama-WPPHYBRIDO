@@ -59,33 +59,54 @@ function clampNumber(v, min, max, fallback) {
 }
 
 
-async function callMemoryJson({ settings, path, method = "POST", body }) {
+async function callMemoryJson({ settings, path, method = "POST", body, timeoutMs = 30000 }) {
   const base = String(settings?.memoryServerUrl || "").trim();
   const key = String(settings?.memoryWorkspaceKey || "").trim();
   if (!base || !key) throw new Error("Memory server não configurado (URL/chave).");
 
   const url = base.replace(/\/+$/, "") + path;
-  const resp = await fetch(url, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Workspace-Key": key
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const resp = await fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Key": key
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
 
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    const msg = data?.error || data?.message || `HTTP ${resp.status}`;
-    throw new Error(`Memory server: ${msg}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const msg = data?.error || data?.message || `HTTP ${resp.status}`;
+      throw new Error(`Memory server: ${msg}`);
+    }
+    return data;
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') {
+      throw new Error('Memory server timeout após ' + (timeoutMs/1000) + 's');
+    }
+    throw e;
   }
-  return data;
 }
 
 async function enqueueMemoryEvent(ev) {
   const res = await chrome.storage.local.get(["whl_sync_queue"]);
-  const q = Array.isArray(res?.whl_sync_queue) ? res.whl_sync_queue : [];
-  q.push({ ...ev, at: Date.now() });
+  let q = Array.isArray(res?.whl_sync_queue) ? res.whl_sync_queue : [];
+  
+  // Remover eventos mais antigos que 24 horas
+  const maxAge = 24 * 60 * 60 * 1000; // 24h em ms
+  const now = Date.now();
+  q = q.filter(e => (now - (e.at || 0)) < maxAge);
+  
+  q.push({ ...ev, at: now });
+  
   // Keep queue bounded
   const bounded = q.slice(-500);
   await chrome.storage.local.set({ whl_sync_queue: bounded });
@@ -115,46 +136,74 @@ function normalizePath(p, fallback) {
   return s.startsWith("/") ? s : `/${s}`;
 }
 
-async function callOpenAI({ apiKey, model, messages, temperature, maxTokens }) {
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature,
-      max_tokens: maxTokens
-    })
-  });
+async function callOpenAI({ apiKey, model, messages, temperature, maxTokens, timeoutMs = 30000 }) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        max_tokens: maxTokens
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
 
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    const errMsg = data?.error?.message || `HTTP ${resp.status}`;
-    throw new Error(errMsg);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const errMsg = data?.error?.message || `HTTP ${resp.status}`;
+      throw new Error(errMsg);
+    }
+
+    const text = data?.choices?.[0]?.message?.content || "";
+    return { text, raw: data };
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') {
+      throw new Error('Request timeout após ' + (timeoutMs/1000) + 's');
+    }
+    throw e;
   }
-
-  const text = data?.choices?.[0]?.message?.content || "";
-  return { text, raw: data };
 }
 
-async function callBackendJson({ backendUrl, path, payload, secret }) {
+async function callBackendJson({ backendUrl, path, payload, secret, timeoutMs = 30000 }) {
   const base = String(backendUrl || "").trim().replace(/\/$/, "");
   if (!base) throw new Error("Backend URL não configurado.");
   const p = normalizePath(path, "/");
-  const resp = await fetch(`${base}${p}`, {
-    method: "POST",
-    headers: Object.assign({ "Content-Type": "application/json" }, secret ? { "X-Alabama-Proxy-Key": secret } : {}),
-    body: JSON.stringify(payload || {})
-  });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    const errMsg = data?.error || data?.message || `HTTP ${resp.status}`;
-    throw new Error(errMsg);
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const resp = await fetch(`${base}${p}`, {
+      method: "POST",
+      headers: Object.assign({ "Content-Type": "application/json" }, secret ? { "X-Alabama-Proxy-Key": secret } : {}),
+      body: JSON.stringify(payload || {}),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const errMsg = data?.error || data?.message || `HTTP ${resp.status}`;
+      throw new Error(errMsg);
+    }
+    return data;
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') {
+      throw new Error('Request timeout após ' + (timeoutMs/1000) + 's');
+    }
+    throw e;
   }
-  return data;
 }
 
 // Keep event handlers at top-level (MV3 requirement)

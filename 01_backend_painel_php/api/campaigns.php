@@ -11,11 +11,36 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigin = '';
+
 if ($origin !== '') {
-    header('Access-Control-Allow-Origin: ' . $origin);
+    if (str_starts_with($origin, 'chrome-extension://')) {
+        $allowedOrigin = $origin;
+    } elseif (str_starts_with($origin, 'moz-extension://')) {
+        $allowedOrigin = $origin;
+    } elseif (str_starts_with($origin, 'edge-extension://')) {
+        $allowedOrigin = $origin;
+    } elseif (preg_match('/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/', $origin)) {
+        $allowedOrigin = $origin;
+    } else {
+        $extraOrigins = trim((string)(getenv('ALABAMA_CORS_ALLOWED_ORIGINS') ?: ''));
+        if ($extraOrigins !== '') {
+            $allowedList = array_map('trim', explode(',', $extraOrigins));
+            foreach ($allowedList as $allowed) {
+                if ($allowed !== '' && $origin === $allowed) {
+                    $allowedOrigin = $origin;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+if ($allowedOrigin !== '') {
+    header('Access-Control-Allow-Origin: ' . $allowedOrigin);
     header('Vary: Origin');
 } else {
-    header('Access-Control-Allow-Origin: *');
+    header('Vary: Origin');
 }
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-Alabama-Proxy-Key');
@@ -36,19 +61,33 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     respond(['ok' => false, 'error' => 'Method not allowed'], 405);
 }
 
-// Optional shared secret (reuse OPENAI_PROXY_SECRET)
-$requiredSecret = trim((string)(getenv('OPENAI_PROXY_SECRET') ?: (getenv('ALABAMA_EXTENSION_SECRET') ?: '')));
-if ($requiredSecret !== '') {
-    $given = trim((string)($_SERVER['HTTP_X_ALABAMA_PROXY_KEY'] ?? ''));
-    if ($given === '' || !hash_equals($requiredSecret, $given)) {
-        respond(['ok' => false, 'error' => 'Unauthorized'], 401);
-    }
-}
-
 $raw = file_get_contents('php://input');
 $body = json_decode($raw ?: '', true);
 if (!is_array($body)) {
     respond(['ok' => false, 'error' => 'Invalid JSON body'], 400);
+}
+
+// Optional shared secret (reuse OPENAI_PROXY_SECRET)
+$requiredSecret = trim((string)(getenv('OPENAI_PROXY_SECRET') ?: (getenv('ALABAMA_EXTENSION_SECRET') ?: '')));
+$given = trim((string)($_SERVER['HTTP_X_ALABAMA_PROXY_KEY'] ?? ''));
+
+// Determine user ID based on authentication method
+$userId = 0;
+if ($requiredSecret !== '' && $given !== '' && hash_equals($requiredSecret, $given)) {
+    // Valid secret provided - use user_id from body or default
+    $userId = (int)($body['user_id'] ?? ($body['userId'] ?? 0));
+    if ($userId <= 0) {
+        $userId = (int)(getenv('EXTENSION_USER_ID') ?: 1);
+    }
+} else {
+    // No valid secret - require authenticated session
+    require_once __DIR__ . '/../session_bootstrap.php';
+    require_once __DIR__ . '/../rbac.php';
+    $user = current_user();
+    if (!$user) {
+        respond(['ok' => false, 'error' => 'Não autenticado. Forneça X-Alabama-Proxy-Key ou faça login.'], 401);
+    }
+    $userId = (int)$user['id'];
 }
 
 // Suporta 2 formatos:
@@ -86,11 +125,6 @@ if ($name === '') {
     $name = 'Extensão - ' . date('Y-m-d H:i');
 }
 
-$userId = (int)($body['user_id'] ?? ($body['userId'] ?? 0));
-if ($userId <= 0) {
-    $userId = (int)(getenv('EXTENSION_USER_ID') ?: 1);
-}
-
 // DB
 require_once __DIR__ . '/../db_config.php';
 require_once __DIR__ . '/../whatsapp_official_api.php';
@@ -103,6 +137,11 @@ foreach ($recipients as $r) {
     if (!is_string($r)) continue;
     $e164 = whatsapp_normalize_phone_e164($r);
     if ($e164 === '') continue;
+    
+    // Validar formato E.164: + seguido de 10-15 dígitos
+    $digits = preg_replace('/[^\d]/', '', $e164);
+    if (strlen($digits) < 10 || strlen($digits) > 15) continue;
+    
     $normalized[] = $e164;
 }
 $normalized = array_values(array_unique($normalized));

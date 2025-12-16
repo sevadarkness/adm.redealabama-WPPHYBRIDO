@@ -66,6 +66,35 @@ function auto_migrate_run(PDO $pdo): array {
         $results[] = ['table' => 'notifications', 'status' => 'exists'];
     }
     
+    // Migration: whatsapp_scheduled_messages
+    if (!auto_migrate_table_exists($pdo, 'whatsapp_scheduled_messages')) {
+        $sql = "CREATE TABLE IF NOT EXISTS whatsapp_scheduled_messages (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NULL,
+            telefone VARCHAR(20) NOT NULL,
+            mensagem TEXT NOT NULL,
+            scheduled_at DATETIME NOT NULL,
+            status ENUM('pending', 'sent', 'failed', 'cancelled') DEFAULT 'pending',
+            sent_at DATETIME NULL,
+            error_message TEXT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_scheduled_at (scheduled_at),
+            INDEX idx_status (status),
+            INDEX idx_user_id (user_id),
+            INDEX idx_status_scheduled (status, scheduled_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+        
+        try {
+            $pdo->exec($sql);
+            $results[] = ['table' => 'whatsapp_scheduled_messages', 'status' => 'created'];
+        } catch (Throwable $e) {
+            $results[] = ['table' => 'whatsapp_scheduled_messages', 'status' => 'error', 'message' => $e->getMessage()];
+        }
+    } else {
+        $results[] = ['table' => 'whatsapp_scheduled_messages', 'status' => 'exists'];
+    }
+    
     return $results;
 }
 

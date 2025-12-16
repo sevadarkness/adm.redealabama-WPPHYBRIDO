@@ -173,8 +173,9 @@ async function send(type, payload) {
 
 function setStatus(msg, ok = true) {
   const s = el("status");
+  if (!s) return;
   s.textContent = msg || "";
-  s.className = "status " + (ok ? "ok" : "err");
+  s.className = "footer-text " + (ok ? "ok" : "err");
 }
 
 // -------------------------

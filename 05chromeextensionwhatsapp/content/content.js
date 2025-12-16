@@ -23,6 +23,8 @@
   // -------------------------
   // Utils & Debug
   // -------------------------
+  // DEBUG_MODE: Set to true for troubleshooting DOM automation issues
+  // NOTE: In production, consider setting to false to reduce console noise
   const DEBUG_MODE = true;
   
   const log = (...args) => console.log('[WhatsHybrid Lite]', ...args);
@@ -440,20 +442,26 @@
     }
 
     // Fast mode with multiple fallback methods
-    // Focar no elemento
+    // Focar no elemento e limpar conteúdo existente
     box.focus();
     await sleep(100);
+    
+    // Limpar qualquer texto existente primeiro
+    try {
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
+      await sleep(50);
+    } catch (_) {}
 
     // Método 1: execCommand (funciona na maioria dos casos)
     debugLog('Método 1: Tentando execCommand...');
     try {
-      document.execCommand('selectAll', false, null);
-      await sleep(50);
       document.execCommand('insertText', false, t);
       box.dispatchEvent(new InputEvent('input', { bubbles: true }));
       
-      // Verificar se texto foi inserido
-      if (box.textContent.includes(t.slice(0, 20))) {
+      // Verificar se texto foi inserido (com validação mais rigorosa)
+      const inserted = box.textContent || box.innerText || '';
+      if (inserted.trim() === t.trim() || inserted.includes(t.slice(0, Math.min(20, t.length)))) {
         debugLog('✅ execCommand funcionou');
         return true;
       }
@@ -465,11 +473,17 @@
     // Método 2: Clipboard API (fallback)
     debugLog('Método 2: Tentando Clipboard API...');
     try {
+      // Limpar antes de tentar clipboard
+      box.textContent = '';
+      await sleep(50);
+      
       await navigator.clipboard.writeText(t);
       document.execCommand('paste');
       box.dispatchEvent(new InputEvent('input', { bubbles: true }));
       await sleep(100);
-      if (box.textContent.includes(t.slice(0, 20))) {
+      
+      const inserted = box.textContent || box.innerText || '';
+      if (inserted.trim() === t.trim() || inserted.includes(t.slice(0, Math.min(20, t.length)))) {
         debugLog('✅ Clipboard API funcionou');
         return true;
       }
@@ -2046,12 +2060,15 @@ ${transcript || '(não consegui ler mensagens)'}
           debugLog('Composer encontrado!');
 
           if (campMediaPayload) {
-            // 3a. Enviar mídia
+            // 3a. Enviar mídia (note: attachMediaAndSend handles its own send logic)
             setCampDomStatus(`📎 (${i+1}/${entries.length}) Enviando mídia para ${e.number}…`, 'ok');
             debugLog('Enviando mídia com legenda:', text.slice(0, 30) + '...');
             await attachMediaAndSend(campMediaPayload, text);
             debugLog('Mídia enviada!');
             await sleep(500);
+            
+            // Record for rate limiting (stealth mode tracking)
+            recordMessageSent();
           } else {
             // 3b. Inserir texto
             if (!text) {

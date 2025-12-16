@@ -385,14 +385,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
         const scheduledDate = new Date(campaign.scheduledTime);
         const now = Date.now();
-        const delayMinutes = Math.max(1, Math.ceil((scheduledDate.getTime() - now) / 60000));
+        const delayMs = scheduledDate.getTime() - now;
+        
+        // Chrome alarms minimum delay is 1 minute for unpacked extensions, less for packed
+        // For campaigns scheduled in less than 1 minute, we use the minimum
+        const delayMinutes = Math.max(0.1, Math.ceil(delayMs / 60000));
 
         // Create alarm for this campaign
         await chrome.alarms.create(campaign.id, {
           delayInMinutes: delayMinutes
         });
 
-        return ok(sendResponse, { scheduled: true, alarmName: campaign.id });
+        return ok(sendResponse, { scheduled: true, alarmName: campaign.id, delayMinutes });
       }
 
       if (msg.type === "CANCEL_SCHEDULED_CAMPAIGN") {

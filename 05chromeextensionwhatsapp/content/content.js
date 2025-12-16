@@ -2301,7 +2301,7 @@ ${transcript || '(não consegui ler mensagens)'}
           const campaigns = Array.isArray(res?.whl_scheduled_campaigns) ? res.whl_scheduled_campaigns : [];
           const newCampaign = {
             ...campaign,
-            id: `camp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+            id: `camp_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
           };
           campaigns.push(newCampaign);
           chrome.storage.local.set({ whl_scheduled_campaigns: campaigns }, () => {
@@ -2341,6 +2341,13 @@ ${transcript || '(não consegui ler mensagens)'}
       });
     }
 
+    // HTML escape helper to prevent XSS
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = String(str || '');
+      return div.innerHTML;
+    }
+
     async function refreshScheduledCampaignsList() {
       if (!scheduledCampaignsBox || !scheduledCampaignsList) return;
 
@@ -2356,16 +2363,17 @@ ${transcript || '(não consegui ler mensagens)'}
       scheduledCampaignsList.innerHTML = campaigns.map(camp => {
         const scheduledDate = new Date(camp.scheduledTime);
         const contactCount = camp.entries ? camp.entries.length : 0;
-        const messagePreview = (camp.message || '').slice(0, 30) + (camp.message && camp.message.length > 30 ? '...' : '');
+        const rawMessage = camp.message || '';
+        const messagePreview = rawMessage.slice(0, 30) + (rawMessage.length > 30 ? '...' : '');
         
         return `
-          <div class="scheduled-item" data-camp-id="${camp.id}">
+          <div class="scheduled-item" data-camp-id="${escapeHtml(camp.id)}">
             <div class="info">
-              <div><strong>📅 ${scheduledDate.toLocaleString('pt-BR')}</strong></div>
+              <div><strong>📅 ${escapeHtml(scheduledDate.toLocaleString('pt-BR'))}</strong></div>
               <div>👥 ${contactCount} contatos</div>
-              <div style="color:var(--muted);">${messagePreview}</div>
+              <div style="color:var(--muted);">${escapeHtml(messagePreview)}</div>
             </div>
-            <button class="danger cancel-scheduled" data-camp-id="${camp.id}">Cancelar</button>
+            <button class="danger cancel-scheduled" data-camp-id="${escapeHtml(camp.id)}">Cancelar</button>
           </div>
         `;
       }).join('');
@@ -2379,7 +2387,8 @@ ${transcript || '(não consegui ler mensagens)'}
           if (campId) {
             try {
               await removeScheduledCampaign(campId);
-              setCampDomStatus(`✅ Agendamento ${campId} cancelado.`, 'ok');
+              // Use safe text to prevent any XSS in status message
+              setCampDomStatus(`✅ Agendamento cancelado.`, 'ok');
               await refreshScheduledCampaignsList();
             } catch (err) {
               setCampDomStatus(`❌ Erro ao cancelar: ${err?.message || String(err)}`, 'err');

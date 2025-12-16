@@ -337,6 +337,7 @@
                     
                     const data = await response.json();
                     if (data.ok) {
+                        // Update button state
                         if (isActive) {
                             btn.classList.remove('active');
                             btn.querySelector('i').classList.remove('fas');
@@ -349,8 +350,27 @@
                             btn.title = 'Remover dos favoritos';
                         }
                         
-                        // Reload page to update favorites section
-                        setTimeout(() => location.reload(), 500);
+                        // Update all favorite buttons for this page
+                        const allBtns = document.querySelectorAll(`[data-url="${url}"]`);
+                        allBtns.forEach(b => {
+                            if (isActive) {
+                                b.classList.remove('active');
+                                b.querySelector('i').classList.remove('fas');
+                                b.querySelector('i').classList.add('far');
+                                b.title = 'Adicionar aos favoritos';
+                            } else {
+                                b.classList.add('active');
+                                b.querySelector('i').classList.remove('far');
+                                b.querySelector('i').classList.add('fas');
+                                b.title = 'Remover dos favoritos';
+                            }
+                        });
+                        
+                        // Show a success message (optional - could use toast notification)
+                        console.log(isActive ? 'Removido dos favoritos' : 'Adicionado aos favoritos');
+                        
+                        // Note: Favorites section update requires page reload
+                        // Future enhancement: dynamically update favorites section without reload
                     }
                 } catch (error) {
                     console.error('Failed to toggle favorite:', error);

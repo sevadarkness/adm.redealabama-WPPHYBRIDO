@@ -41,6 +41,9 @@ function auto_migrate_run(PDO $pdo): array {
     
     // Migration: user_favorites
     if (!auto_migrate_table_exists($pdo, 'user_favorites')) {
+        // Check if usuarios table exists first (for foreign key)
+        $usuariosExists = auto_migrate_table_exists($pdo, 'usuarios');
+        
         $sql = "CREATE TABLE IF NOT EXISTS user_favorites (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
@@ -52,7 +55,8 @@ function auto_migrate_run(PDO $pdo): array {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY uk_user_page (user_id, page_url),
             INDEX idx_user (user_id),
-            INDEX idx_sort_order (sort_order)
+            INDEX idx_sort_order (sort_order)" .
+            ($usuariosExists ? ",\n            CONSTRAINT fk_user_favorites_user FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE" : "") . "
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
         
         try {

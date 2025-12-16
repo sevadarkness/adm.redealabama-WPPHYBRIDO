@@ -141,7 +141,15 @@ try {
     $stmt->execute([':user_id' => $usuario_id]);
     $favorites = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // Silenciosamente falha se a tabela ainda não existe
+    // Falha silenciosa se tabela não existe ainda (primeira execução)
+    // Mas loga outros erros para diagnóstico
+    if ($e->getCode() !== '42S02') { // Table doesn't exist error code
+        log_app_event('sidebar', 'favorites_load_error', [
+            'error' => $e->getMessage(),
+            'code' => $e->getCode(),
+            'usuario_id' => $usuario_id
+        ]);
+    }
     $favorites = [];
 }
 

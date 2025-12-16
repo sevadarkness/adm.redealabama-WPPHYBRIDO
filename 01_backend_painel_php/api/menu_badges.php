@@ -29,7 +29,8 @@ try {
     $stmt = $pdo->prepare("
         SELECT COUNT(*) as count 
         FROM leads 
-        WHERE DATE(criado_em) = CURDATE() 
+        WHERE criado_em >= CURDATE() 
+        AND criado_em < CURDATE() + INTERVAL 1 DAY
         AND status = 'novo'
     ");
     $stmt->execute();
@@ -69,7 +70,8 @@ try {
     $stmt = $pdo->prepare("
         SELECT COUNT(*) as count 
         FROM vendas 
-        WHERE DATE(created_at) = CURDATE()
+        WHERE created_at >= CURDATE() 
+        AND created_at < CURDATE() + INTERVAL 1 DAY
     ");
     $stmt->execute();
     $badges['sales_today'] = (int)$stmt->fetch(PDO::FETCH_ASSOC)['count'];

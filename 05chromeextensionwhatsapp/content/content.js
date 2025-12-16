@@ -150,6 +150,97 @@
 
   injectMainWorld();
 
+  // Listen for messages from background script (scheduled campaigns)
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'EXECUTE_SCHEDULED_CAMPAIGN') {
+      (async () => {
+        try {
+          const campaign = message.campaign;
+          if (!campaign || !campaign.entries || !Array.isArray(campaign.entries)) {
+            console.error('[WHL] Invalid scheduled campaign data');
+            return;
+          }
+
+          log('Executing scheduled campaign:', campaign.id);
+          
+          // Find the shadow root elements (they should already be mounted)
+          const host = document.getElementById(EXT.id);
+          if (!host || !host.shadowRoot) {
+            console.error('[WHL] Extension UI not mounted');
+            return;
+          }
+
+          // Execute campaign (reusing the executeDomCampaign logic)
+          // We need to store the media payload if present
+          let mediaPayload = campaign.media || null;
+          
+          // Execute the campaign
+          await executeDomCampaignDirectly(campaign.entries, campaign.message, mediaPayload);
+          
+        } catch (e) {
+          console.error('[WHL] Error executing scheduled campaign:', e);
+        }
+      })();
+      return true; // Keep channel open for async response
+    }
+  });
+
+  // Helper function to execute campaign directly (used by scheduled campaigns)
+  async function executeDomCampaignDirectly(entries, msg, mediaPayload) {
+    debugLog('Executing scheduled campaign with', entries.length, 'contacts');
+    
+    // Use default delays for scheduled campaigns
+    const dmin = 8;
+    const dmax = 15;
+
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      debugLog(`[${i+1}/${entries.length}] Processing scheduled:`, e.number);
+      
+      const text = applyVars(msg || '', e).trim();
+      const phoneDigits = e.number.replace(/[^\d]/g, '');
+
+      try {
+        debugLog('Opening chat...');
+        await openChatBySearch(phoneDigits);
+        await sleep(500);
+        
+        const composer = findComposer();
+        if (!composer) {
+          throw new Error('Composer not found');
+        }
+
+        if (mediaPayload) {
+          debugLog('Sending media...');
+          await attachMediaAndSend(mediaPayload, text);
+          await sleep(500);
+          recordMessageSent();
+        } else {
+          if (!text) throw new Error('Empty message');
+          debugLog('Inserting text...');
+          await insertIntoComposer(text, false, true);
+          await sleep(300);
+          await clickSend(true);
+          await sleep(500);
+        }
+
+        debugLog(`✅ Success for ${e.number}`);
+      } catch (err) {
+        debugLog(`❌ Error for ${e.number}:`, err);
+        console.error(`[WHL] Error for ${e.number}:`, err);
+      }
+
+      // Delay between messages
+      if (i < entries.length - 1) {
+        const delay = (Math.random() * (dmax - dmin) + dmin) * 1000;
+        debugLog(`Waiting ${delay/1000}s...`);
+        await sleep(delay);
+      }
+    }
+
+    debugLog('Scheduled campaign completed!');
+  }
+
   // -------------------------
   // WhatsApp DOM helpers
   // -------------------------
@@ -1415,6 +1506,59 @@ ${transcript || '(não consegui ler mensagens)'}
       .checkline input{ width:16px; height:16px; }
       .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
+      .preview-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      }
+      .preview-content {
+        background: var(--panel);
+        border-radius: 18px;
+        padding: 20px;
+        max-width: 400px;
+        max-height: 70vh;
+        overflow: auto;
+        border: 1px solid var(--stroke);
+      }
+      .preview-stats {
+        font-size: 13px;
+        margin: 10px 0;
+        padding: 10px;
+        background: rgba(139,92,246,0.15);
+        border-radius: 12px;
+      }
+      .preview-message {
+        font-size: 12px;
+        padding: 12px;
+        background: rgba(5,7,15,0.55);
+        border-radius: 12px;
+        margin: 10px 0;
+        white-space: pre-wrap;
+        border: 1px solid rgba(255,255,255,0.1);
+      }
+      .preview-contacts {
+        font-size: 11px;
+        max-height: 150px;
+        overflow: auto;
+        padding: 10px;
+        background: rgba(5,7,15,0.35);
+        border-radius: 12px;
+      }
+      .schedule-box {
+        margin: 10px 0;
+        padding: 10px;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px;
+        background: rgba(5,7,15,0.35);
+      }
+
       .progress-wrap {
         margin-top: 10px;
         background: rgba(5,7,15,.55);
@@ -1532,6 +1676,19 @@ ${transcript || '(não consegui ler mensagens)'}
           <div class="status" id="campMediaStatus"></div>
 
           <div id="campDomBox" style="display:none;">
+            <!-- Agendamento -->
+            <div class="schedule-box">
+              <label>Quando enviar?</label>
+              <div class="checkline">
+                <input type="radio" name="scheduleType" id="scheduleNow" value="now" checked>
+                <label for="scheduleNow">Enviar agora</label>
+              </div>
+              <div class="checkline">
+                <input type="radio" name="scheduleType" id="scheduleLater" value="later">
+                <label for="scheduleLater">Agendar para:</label>
+                <input type="datetime-local" id="scheduleDateTime" disabled>
+              </div>
+            </div>
             <div class="row">
               <div>
                 <label>Delay min (s)</label>
@@ -1598,6 +1755,20 @@ ${transcript || '(não consegui ler mensagens)'}
           <textarea id="contOut" placeholder="Saída..."></textarea>
 
           <div class="status" id="contStatus"></div>
+        </div>
+      </div>
+
+      <!-- Modal de Prévia (inicialmente oculto) -->
+      <div class="preview-modal" id="previewModal" style="display:none;">
+        <div class="preview-content">
+          <h3>📋 Prévia da Campanha</h3>
+          <div class="preview-stats" id="previewStats"></div>
+          <div class="preview-message" id="previewMessage"></div>
+          <div class="preview-contacts" id="previewContacts"></div>
+          <div class="btns">
+            <button class="danger" id="previewCancelBtn">❌ Cancelar</button>
+            <button class="primary" id="previewConfirmBtn">✅ Confirmar Envio</button>
+          </div>
         </div>
       </div>
     `;
@@ -1958,6 +2129,19 @@ ${transcript || '(não consegui ler mensagens)'}
     const campProgressBar = shadow.getElementById('campProgressBar');
     const campProgressText = shadow.getElementById('campProgressText');
 
+    // Scheduling elements
+    const scheduleNow = shadow.getElementById('scheduleNow');
+    const scheduleLater = shadow.getElementById('scheduleLater');
+    const scheduleDateTime = shadow.getElementById('scheduleDateTime');
+
+    // Preview modal elements
+    const previewModal = shadow.getElementById('previewModal');
+    const previewStats = shadow.getElementById('previewStats');
+    const previewMessage = shadow.getElementById('previewMessage');
+    const previewContacts = shadow.getElementById('previewContacts');
+    const previewCancelBtn = shadow.getElementById('previewCancelBtn');
+    const previewConfirmBtn = shadow.getElementById('previewConfirmBtn');
+
     const campRun = { running:false, paused:false, abort:false, cursor:0, total:0 };
 
     function setCampApiStatus(msg, kind) {
@@ -2006,10 +2190,128 @@ ${transcript || '(não consegui ler mensagens)'}
     campMode.addEventListener('change', renderCampMode);
     renderCampMode();
 
+    // Schedule radio button logic
+    function updateScheduleInputs() {
+      if (scheduleDateTime) {
+        scheduleDateTime.disabled = !scheduleLater.checked;
+      }
+    }
+
+    if (scheduleNow) {
+      scheduleNow.addEventListener('change', updateScheduleInputs);
+    }
+    if (scheduleLater) {
+      scheduleLater.addEventListener('change', updateScheduleInputs);
+    }
+    updateScheduleInputs();
+
     async function waitWhilePaused() {
       while (campRun.paused && !campRun.abort) {
         await sleep(250);
       }
+    }
+
+    function showPreviewModal(entries, msg) {
+      if (!previewModal || !previewStats || !previewMessage || !previewContacts) return;
+
+      // Stats
+      previewStats.innerHTML = `
+        <strong>Total de contatos:</strong> ${entries.length}<br/>
+        ${campMediaPayload ? '<strong>📎 Mídia:</strong> ' + campMediaPayload.name + '<br/>' : ''}
+      `;
+
+      // Preview message with first contact as example
+      const firstEntry = entries[0] || { number: '+5511999999999', name: 'Exemplo' };
+      const previewText = applyVars(msg || '', firstEntry);
+      previewMessage.textContent = previewText || '(sem mensagem)';
+
+      // Contact list
+      const contactListHtml = entries.slice(0, 50).map((e, i) => 
+        `<div style="padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05);">
+          ${i+1}. ${e.name || '(sem nome)'} - ${e.number}
+        </div>`
+      ).join('');
+      const moreText = entries.length > 50 ? `<div style="padding:8px 0; color:var(--muted);">... e mais ${entries.length - 50} contatos</div>` : '';
+      previewContacts.innerHTML = contactListHtml + moreText;
+
+      // Show modal
+      previewModal.style.display = 'flex';
+    }
+
+    function hidePreviewModal() {
+      if (previewModal) {
+        previewModal.style.display = 'none';
+      }
+    }
+
+    // Preview modal button handlers
+    if (previewCancelBtn) {
+      previewCancelBtn.addEventListener('click', () => {
+        hidePreviewModal();
+        setCampDomStatus('❌ Campanha cancelada pelo usuário.', 'err');
+      });
+    }
+
+    if (previewConfirmBtn) {
+      previewConfirmBtn.addEventListener('click', async () => {
+        hidePreviewModal();
+        setCampDomStatus('Iniciando campanha...', 'ok');
+        
+        try {
+          const entries = parseCampaignLines(campNumbers.value);
+          const msg = safeText(campMsg.value).trim();
+          await executeDomCampaign(entries, msg);
+        } catch (e) {
+          setCampDomStatus(`Erro: ${e?.message || String(e)}`, 'err');
+        }
+      });
+    }
+
+    // Scheduled campaigns storage
+    async function saveScheduledCampaign(campaign) {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(['whl_scheduled_campaigns'], (res) => {
+          const campaigns = Array.isArray(res?.whl_scheduled_campaigns) ? res.whl_scheduled_campaigns : [];
+          const newCampaign = {
+            ...campaign,
+            id: `camp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          };
+          campaigns.push(newCampaign);
+          chrome.storage.local.set({ whl_scheduled_campaigns: campaigns }, () => {
+            // Notify background to create alarm
+            bg('SCHEDULE_CAMPAIGN', { campaign: newCampaign }).then(() => {
+              resolve(newCampaign);
+            }).catch(() => {
+              resolve(newCampaign);
+            });
+          });
+        });
+      });
+    }
+
+    async function getScheduledCampaigns() {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(['whl_scheduled_campaigns'], (res) => {
+          resolve(Array.isArray(res?.whl_scheduled_campaigns) ? res.whl_scheduled_campaigns : []);
+        });
+      });
+    }
+
+    async function removeScheduledCampaign(campaignId) {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(['whl_scheduled_campaigns'], (res) => {
+          const campaigns = Array.isArray(res?.whl_scheduled_campaigns) ? res.whl_scheduled_campaigns : [];
+          const filtered = campaigns.filter(c => c.id !== campaignId);
+          chrome.storage.local.set({ whl_scheduled_campaigns: filtered }, () => {
+            // Notify background to cancel alarm
+            bg('CANCEL_SCHEDULED_CAMPAIGN', { campaignId }).then(() => {
+              resolve(true);
+            }).catch(() => {
+              resolve(true);
+            });
+          });
+        });
+      });
     }
 
     async function executeDomCampaign(entries, msg) {
@@ -2152,7 +2454,32 @@ ${transcript || '(não consegui ler mensagens)'}
         if (!msg && !hasMedia) throw new Error('Digite a mensagem ou selecione uma mídia.');
 
         if (campRun.running) throw new Error('Já existe uma execução em andamento.');
-        await executeDomCampaign(entries, msg);
+
+        // Check if scheduling
+        const isScheduled = scheduleLater && scheduleLater.checked;
+        if (isScheduled) {
+          const scheduledTime = scheduleDateTime ? scheduleDateTime.value : '';
+          if (!scheduledTime) throw new Error('Selecione data e hora para o agendamento.');
+          
+          const scheduledDate = new Date(scheduledTime);
+          const now = new Date();
+          if (scheduledDate <= now) throw new Error('A data/hora deve ser no futuro.');
+
+          // Save scheduled campaign
+          await saveScheduledCampaign({
+            entries,
+            message: msg,
+            media: campMediaPayload,
+            scheduledTime: scheduledDate.toISOString(),
+            createdAt: now.toISOString()
+          });
+
+          setCampDomStatus(`✅ Campanha agendada para ${scheduledDate.toLocaleString('pt-BR')}`, 'ok');
+          return;
+        }
+
+        // Show preview modal for immediate campaigns
+        showPreviewModal(entries, msg);
       } catch (e) {
         setCampDomStatus(`Erro: ${e?.message || String(e)}`, 'err');
       }

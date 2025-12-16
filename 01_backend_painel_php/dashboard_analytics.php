@@ -698,6 +698,10 @@ const campaignTotals = last7Days.map(item => item.total);
 const campaignEnviadas = last7Days.map(item => item.enviadas);
 
 const campaignCtx = document.getElementById('campaignMessagesChart').getContext('2d');
+
+// Check if there's any data
+const hasData = campaignTotals.some(val => val > 0);
+
 new Chart(campaignCtx, {
     type: 'bar',
     data: {
@@ -752,6 +756,16 @@ new Chart(campaignCtx, {
         }
     }
 });
+
+// Show message if no data
+if (!hasData) {
+    const chartContainer = campaignCtx.canvas.parentElement;
+    const noDataMsg = document.createElement('div');
+    noDataMsg.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#888;text-align:center;';
+    noDataMsg.innerHTML = '<i class="fas fa-chart-bar fa-3x mb-3" style="opacity:0.3;"></i><br>Sem dados de mensagens nos últimos 7 dias';
+    chartContainer.style.position = 'relative';
+    chartContainer.appendChild(noDataMsg);
+}
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

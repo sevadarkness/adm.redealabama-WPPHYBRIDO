@@ -333,6 +333,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const labels = statusData.map(item => statusLabels[item.status] || item.status);
     const data = statusData.map(item => parseInt(item.quantidade));
     const colors = statusData.map(item => statusColors[item.status] || 'rgba(139, 92, 246, 0.8)');
+    const hasData = data.length > 0 && data.some(val => val > 0);
     
     new Chart(leadsCtx.getContext('2d'), {
         type: 'bar',
@@ -373,6 +374,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+    
+    // Show message if no data
+    if (!hasData) {
+        const chartContainer = leadsCtx.parentElement;
+        const noDataMsg = document.createElement('div');
+        noDataMsg.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#888;text-align:center;';
+        noDataMsg.innerHTML = '<i class="fas fa-chart-bar fa-3x mb-3" style="opacity:0.3;"></i><br>Sem dados de leads no sistema';
+        chartContainer.style.position = 'relative';
+        chartContainer.appendChild(noDataMsg);
+    }
 });
 </script>
 

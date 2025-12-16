@@ -2307,23 +2307,24 @@ function initCampaignStatusChart() {
     const entregues = <?= $campaignStats['entregues'] ?>;
     const falhas = <?= $campaignStats['falhas'] ?>;
     const pendentes = <?= $campaignStats['pendentes'] ?>;
+    const hasData = entregues + falhas + pendentes > 0;
     
     new Chart(campanhasCtx.getContext('2d'), {
         type: 'doughnut',
         data: {
             labels: ['✅ Entregues', '❌ Falhas', '⏳ Pendentes'],
             datasets: [{
-                data: [entregues, falhas, pendentes],
-                backgroundColor: [
+                data: hasData ? [entregues, falhas, pendentes] : [1],
+                backgroundColor: hasData ? [
                     'rgba(34, 197, 94, 0.8)',   // Verde
                     'rgba(239, 68, 68, 0.8)',   // Vermelho
                     'rgba(234, 179, 8, 0.8)'    // Amarelo
-                ],
-                borderColor: [
+                ] : ['rgba(100, 100, 100, 0.2)'],
+                borderColor: hasData ? [
                     'rgba(34, 197, 94, 1)',
                     'rgba(239, 68, 68, 1)',
                     'rgba(234, 179, 8, 1)'
-                ],
+                ] : ['rgba(100, 100, 100, 0.3)'],
                 borderWidth: 2
             }]
         },
@@ -2333,6 +2334,7 @@ function initCampaignStatusChart() {
             cutout: '60%',
             plugins: {
                 legend: {
+                    display: hasData,
                     position: 'right',
                     labels: { 
                         color: '#fff',
@@ -2341,6 +2343,7 @@ function initCampaignStatusChart() {
                     }
                 },
                 tooltip: {
+                    enabled: hasData,
                     callbacks: {
                         label: (ctx) => {
                             const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
@@ -2352,6 +2355,16 @@ function initCampaignStatusChart() {
             }
         }
     });
+    
+    // Show message if no data
+    if (!hasData) {
+        const chartContainer = campanhasCtx.parentElement;
+        const noDataMsg = document.createElement('div');
+        noDataMsg.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#888;text-align:center;';
+        noDataMsg.innerHTML = '<i class="fas fa-chart-pie fa-3x mb-3" style="opacity:0.3;"></i><br>Sem dados de campanhas nos últimos 30 dias';
+        chartContainer.style.position = 'relative';
+        chartContainer.appendChild(noDataMsg);
+    }
 }
 </script>
 </body>

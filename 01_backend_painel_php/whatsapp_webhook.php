@@ -175,19 +175,36 @@ function whatsapp_find_or_create_conversa(PDO $pdo, string $telefone): int
 
 function whatsapp_insert_message(PDO $pdo, int $conversaId, string $direction, string $author, string $conteudo, array $raw = [], ?string $llmModel = null, ?int $tokensTotal = null, ?string $metaMessageId = null): int
 {
-    $sql = "INSERT INTO whatsapp_mensagens (conversa_id, direction, author, conteudo, raw_payload, llm_model, llm_tokens_total, meta_message_id)
-            VALUES (:conversa_id, :direction, :author, :conteudo, :raw_payload, :llm_model, :llm_tokens_total, :meta_message_id)";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        ':conversa_id'      => $conversaId,
-        ':direction'        => $direction,
-        ':author'           => $author,
-        ':conteudo'         => $conteudo,
-        ':raw_payload'      => $raw ? json_encode($raw, JSON_UNESCAPED_UNICODE) : null,
-        ':llm_model'        => $llmModel,
-        ':llm_tokens_total' => $tokensTotal,
-        ':meta_message_id'  => $metaMessageId,
-    ]);
+    // Tenta inserir com meta_message_id; se a coluna não existe, usa query sem ela
+    try {
+        $sql = "INSERT INTO whatsapp_mensagens (conversa_id, direction, author, conteudo, raw_payload, llm_model, llm_tokens_total, meta_message_id)
+                VALUES (:conversa_id, :direction, :author, :conteudo, :raw_payload, :llm_model, :llm_tokens_total, :meta_message_id)";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':conversa_id'      => $conversaId,
+            ':direction'        => $direction,
+            ':author'           => $author,
+            ':conteudo'         => $conteudo,
+            ':raw_payload'      => $raw ? json_encode($raw, JSON_UNESCAPED_UNICODE) : null,
+            ':llm_model'        => $llmModel,
+            ':llm_tokens_total' => $tokensTotal,
+            ':meta_message_id'  => $metaMessageId,
+        ]);
+    } catch (PDOException $e) {
+        // Se falhar (ex: coluna meta_message_id não existe), tenta sem ela
+        $sql = "INSERT INTO whatsapp_mensagens (conversa_id, direction, author, conteudo, raw_payload, llm_model, llm_tokens_total)
+                VALUES (:conversa_id, :direction, :author, :conteudo, :raw_payload, :llm_model, :llm_tokens_total)";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':conversa_id'      => $conversaId,
+            ':direction'        => $direction,
+            ':author'           => $author,
+            ':conteudo'         => $conteudo,
+            ':raw_payload'      => $raw ? json_encode($raw, JSON_UNESCAPED_UNICODE) : null,
+            ':llm_model'        => $llmModel,
+            ':llm_tokens_total' => $tokensTotal,
+        ]);
+    }
     return (int)$pdo->lastInsertId();
 }
 
@@ -316,6 +333,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$settings) {
         log_app_event('whatsapp_bot', 'settings_nao_configurados', []);
         whatsapp_webhook_json_response(['success' => true, 'ignored' => true, 'reason' => 'no_settings'], 200);
+    }
+
+    // Valida assinatura HMAC do Meta se app_secret estiver configurado
+    $appSecret = $settings['meta_app_secret'] ?? getenv('META_APP_SECRET') ?: '';
+    if ($appSecret !== '') {
+        $signature = $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? '';
+        if (!whatsapp_validate_signature($body, $signature, $appSecret)) {
+            log_app_event('whatsapp_bot', 'assinatura_invalida', ['signature' => $signature]);
+            whatsapp_webhook_json_response(['success' => false, 'error' => 'invalid_signature'], 403);
+        }
     }
 
     $phoneNumberId = $settings['phone_number_id'] ?? null;

@@ -19,29 +19,27 @@ $vendedores = $stmt_vendedores->fetchAll();
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <link rel="stylesheet" href="alabama-theme.css">
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relatório de Estoques</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Relatório de Estoques - Rede Alabama</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/alabama-design-system.css">
+    <link rel="stylesheet" href="alabama-theme.css">
+    <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .table-responsive {
-            overflow-x: auto;
-        }
         .prejuizo-box {
-            background: #f8d7da;
-            color: #721c24;
             padding: 15px;
-            border-radius: 5px;
-            border: 1px solid #f5c6cb;
+            border-radius: var(--al-radius-md);
             margin-bottom: 20px;
         }
     </style>
 </head>
-<body>
+<body class="al-body">
     <div class="container mt-4">
         <h3 class="text-center">Relatório de Estoques</h3>
         

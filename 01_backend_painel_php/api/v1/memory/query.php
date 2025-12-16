@@ -63,8 +63,10 @@ try {
     }
     
     if ($query !== '') {
+        // Escape special characters for LIKE pattern
+        $escapedQuery = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $query);
         $sql .= " AND event_data LIKE :query";
-        $params[':query'] = '%' . $query . '%';
+        $params[':query'] = '%' . $escapedQuery . '%';
     }
     
     $sql .= " ORDER BY created_at DESC LIMIT :limit";

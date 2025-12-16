@@ -57,6 +57,25 @@ $batchSize = 20;
 
 echo "[whatsapp_bulk_worker] Iniciando..." . PHP_EOL;
 
+// Initialize bulk log table once at startup
+try {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS whatsapp_bulk_log (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            bulk_job_id INT NOT NULL,
+            item_id INT NOT NULL,
+            to_phone VARCHAR(32) NOT NULL,
+            status VARCHAR(32) NOT NULL,
+            enviado_em DATETIME NOT NULL,
+            UNIQUE KEY uq_job_item (bulk_job_id, item_id),
+            INDEX idx_bulk_job (bulk_job_id),
+            INDEX idx_enviado_em (enviado_em)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+} catch (PDOException $e) {
+    // Table already exists, continue
+}
+
 try {
     // Busca jobs elegíveis
     $stmtJobs = $pdo->prepare("
@@ -182,24 +201,6 @@ try {
                     $stmtUpdateJob->execute([':job_id' => $jobId]);
 
                     // Register in bulk log for idempotency
-                    try {
-                        $pdo->exec("
-                            CREATE TABLE IF NOT EXISTS whatsapp_bulk_log (
-                                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                                bulk_job_id INT NOT NULL,
-                                item_id INT NOT NULL,
-                                to_phone VARCHAR(32) NOT NULL,
-                                status VARCHAR(32) NOT NULL,
-                                enviado_em DATETIME NOT NULL,
-                                UNIQUE KEY uq_job_item (bulk_job_id, item_id),
-                                INDEX idx_bulk_job (bulk_job_id),
-                                INDEX idx_enviado_em (enviado_em)
-                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                        ");
-                    } catch (PDOException $e) {
-                        // Table already exists, ignore
-                    }
-
                     $stmtLog = $pdo->prepare("
                         INSERT INTO whatsapp_bulk_log (bulk_job_id, item_id, to_phone, status, enviado_em)
                         VALUES (:job_id, :item_id, :to_phone, 'sent', NOW())

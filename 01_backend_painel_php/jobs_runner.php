@@ -26,7 +26,9 @@ register_shutdown_function(function() use ($lockHandle, $lockFile) {
         flock($lockHandle, LOCK_UN);
         fclose($lockHandle);
     }
-    @unlink($lockFile);
+    if (file_exists($lockFile) && !unlink($lockFile)) {
+        error_log("[jobs_runner] Failed to remove lock file: $lockFile");
+    }
 });
 
 $autoload = __DIR__ . '/vendor/autoload.php';

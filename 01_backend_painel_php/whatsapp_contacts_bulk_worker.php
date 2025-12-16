@@ -21,6 +21,19 @@ if (php_sapi_name() !== 'cli') {
     exit(1);
 }
 
+// File lock para prevenir execuções concorrentes
+$lockFile = sys_get_temp_dir() . '/whatsapp_bulk_worker.lock';
+$lockHandle = fopen($lockFile, 'w');
+if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    echo "[whatsapp_bulk_worker] Outra instância já está rodando." . PHP_EOL;
+    exit(0);
+}
+register_shutdown_function(function() use ($lockHandle, $lockFile) {
+    flock($lockHandle, LOCK_UN);
+    fclose($lockHandle);
+    @unlink($lockFile);
+});
+
 $autoload = __DIR__ . '/vendor/autoload.php';
 if (is_file($autoload)) {
     require_once $autoload;

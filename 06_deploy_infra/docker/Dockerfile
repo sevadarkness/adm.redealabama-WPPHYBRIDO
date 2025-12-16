@@ -10,6 +10,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git \
         unzip \
+        curl \
         libicu-dev \
         libonig-dev \
         libzip-dev \
@@ -40,5 +41,9 @@ COPY 06_deploy_infra/docker/apache-site.conf /etc/apache2/sites-available/000-de
 RUN chown -R www-data:www-data /var/www/html
 
 EXPOSE 80
+
+# Health check para verificar se o servidor está respondendo
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost/healthz.php || exit 1
 
 CMD ["apache2-foreground"]

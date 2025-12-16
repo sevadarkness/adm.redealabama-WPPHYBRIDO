@@ -3,9 +3,6 @@
 require_once __DIR__ . '/session_bootstrap.php';
 include 'db_config.php';
 include 'menu_navegacao.php';
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
 
 // Validando a sessão do usuário
 if (!isset($_SESSION['mensagem'])) $_SESSION['mensagem'] = '';
@@ -50,6 +47,15 @@ try {
 
 // Lógica de envio do formulário
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_venda'])) {
+    // Validação CSRF
+    require_once __DIR__ . '/csrf.php';
+    if (!csrf_validate()) {
+        $_SESSION['mensagem'] = 'Sessão expirada. Recarregue a página.';
+        $_SESSION['tipo_mensagem'] = 'danger';
+        header('Location: nova_venda.php');
+        exit;
+    }
+
     try {
         // Verificando se o produto e sabor foram selecionados
         if (empty($_POST['produto_id']) || empty($_POST['sabor_id'])) {
@@ -237,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_venda'])) {
 
             <?php if (!empty($_SESSION['mensagem'])): ?>
                 <div class="floating-alert alert alert-<?= $_SESSION['tipo_mensagem'] ?> alert-dismissible fade show">
-                    <?= $_SESSION['mensagem'] ?>
+                    <?= htmlspecialchars($_SESSION['mensagem'], ENT_QUOTES, 'UTF-8') ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
                 <?php unset($_SESSION['mensagem'], $_SESSION['tipo_mensagem']); ?>
@@ -245,6 +251,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmar_venda'])) {
 
             <?php if (!$acesso_restrito): ?>
                 <form method="POST" id="formVenda" enctype="multipart/form-data">
+                    <?php require_once __DIR__ . '/csrf.php'; echo csrf_field(); ?>
                     <div class="mb-4">
                         <label class="form-label fw-bold">Selecione o Produto</label>
                         <select class="form-select form-control-custom" name="produto_id" id="produtoSelect" required>

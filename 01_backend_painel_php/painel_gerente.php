@@ -138,94 +138,42 @@ $estoque_baixo = $stmt_estoque->fetchAll(PDO::FETCH_ASSOC);
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <link rel="stylesheet" href="alabama-theme.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel do Gerente - Dashboard</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Painel do Gerente - Rede Alabama</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/alabama-design-system.css">
+    <link rel="stylesheet" href="alabama-theme.css">
+    <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
         .dashboard-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
             padding: 2rem 0;
             margin-bottom: 2rem;
-            border-radius: 0.5rem;
-        }
-        
-        .kpi-card {
-            background: white;
-            border-radius: 0.5rem;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            transition: transform 0.2s;
-        }
-        
-        .kpi-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-radius: var(--al-radius-lg);
         }
         
         .kpi-value {
             font-size: 2rem;
             font-weight: bold;
-            color: #667eea;
+            color: var(--al-primary);
         }
         
         .kpi-label {
-            color: #6c757d;
             font-size: 0.9rem;
             text-transform: uppercase;
-        }
-        
-        .section-card {
-            background: white;
-            border-radius: 0.5rem;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         
         .section-title {
             font-size: 1.25rem;
             font-weight: 600;
-            color: #343a40;
             margin-bottom: 1rem;
-            border-bottom: 2px solid #667eea;
+            border-bottom: 2px solid var(--al-primary);
             padding-bottom: 0.5rem;
-        }
-        
-        .table-sm {
-            font-size: 0.9rem;
-        }
-        
-        .badge-success {
-            background-color: #28a745;
-        }
-        
-        .badge-warning {
-            background-color: #ffc107;
-            color: #212529;
-        }
-        
-        .badge-danger {
-            background-color: #dc3545;
-        }
-        
-        .alert-stock {
-            background-color: #fff3cd;
-            border-left: 4px solid #ffc107;
-        }
-        
-        .quick-actions .btn {
-            margin: 0.25rem;
         }
         
         .chart-container {
@@ -236,7 +184,7 @@ $estoque_baixo = $stmt_estoque->fetchAll(PDO::FETCH_ASSOC);
         .icon-box {
             width: 48px;
             height: 48px;
-            border-radius: 0.5rem;
+            border-radius: var(--al-radius-md);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -244,13 +192,13 @@ $estoque_baixo = $stmt_estoque->fetchAll(PDO::FETCH_ASSOC);
             margin-right: 1rem;
         }
         
-        .icon-box.blue { background-color: rgba(102, 126, 234, 0.1); color: #667eea; }
-        .icon-box.green { background-color: rgba(40, 167, 69, 0.1); color: #28a745; }
-        .icon-box.orange { background-color: rgba(255, 193, 7, 0.1); color: #ffc107; }
-        .icon-box.purple { background-color: rgba(118, 75, 162, 0.1); color: #764ba2; }
+        .icon-box.blue { background-color: rgba(139, 92, 246, 0.1); color: var(--al-primary); }
+        .icon-box.green { background-color: rgba(74, 222, 128, 0.1); color: var(--al-success); }
+        .icon-box.orange { background-color: rgba(251, 191, 36, 0.1); color: var(--al-warning); }
+        .icon-box.purple { background-color: rgba(139, 92, 246, 0.15); color: var(--al-primary-hover); }
     </style>
 </head>
-<body>
+<body class="al-body">
 
 <div class="container-fluid mt-4">
     <div class="dashboard-header text-center">
@@ -582,5 +530,6 @@ const vendasChart = new Chart(ctx, {
 });
 </script>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

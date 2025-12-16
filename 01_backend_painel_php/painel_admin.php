@@ -63,34 +63,25 @@ $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <link rel="stylesheet" href="alabama-theme.css">
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Administrativo</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Painel Administrativo - Rede Alabama</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/alabama-design-system.css">
+    <link rel="stylesheet" href="alabama-theme.css">
+    <link rel="stylesheet" href="assets/css/alabama-page-overrides.css">
     <style>
-        body {
-            background-color: #f8f9fa;
-        }
-        .admin-card {
-            background: white;
-            border-radius: 0.5rem;
-            box-shadow: 0 0.15rem 0.5rem rgba(0,0,0,.15);
-            margin-bottom: 1.5rem;
-            padding: 1.5rem;
-        }
-        .table-hover tbody tr:hover {
-            background-color: #f8f9fa;
-        }
         .action-buttons .btn {
             margin: 0 3px;
             min-width: 70px;
         }
     </style>
 </head>
-<body>
+<body class="al-body">
 
 <div class="container mt-4">
     <div class="admin-card">
@@ -219,11 +210,13 @@ $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </footer>
 
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script <?php echo alabama_csp_nonce_attr(); ?>>
-    $(function () {
-        $('[data-toggle="tooltip"]').tooltip()
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
     })
 </script>
 

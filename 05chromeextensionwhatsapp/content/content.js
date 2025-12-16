@@ -4331,13 +4331,985 @@ ${transcript || '(não consegui ler mensagens)'}
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // TOP BAR - Fixed bar at the top of WhatsApp Web
+  // ═══════════════════════════════════════════════════════════════════
+  
+  function mountTopBar() {
+    // Check if top bar already exists
+    if (document.getElementById('wh-topbar-root')) return;
+    
+    const topBarHost = document.createElement('div');
+    topBarHost.id = 'wh-topbar-root';
+    topBarHost.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; z-index: 999999;';
+    
+    const topBarShadow = topBarHost.attachShadow({ mode: 'open' });
+    
+    // Add top bar styles
+    const topBarStyle = document.createElement('style');
+    topBarStyle.textContent = `
+      :host {
+        --bg-dark: #0a0c18;
+        --bg-dark2: #0d1020;
+        --accent-purple: #8b5cf6;
+        --accent-blue: #3b82f6;
+        --text-primary: rgba(255, 255, 255, 0.95);
+        --text-muted: rgba(255, 255, 255, 0.7);
+        --border-subtle: rgba(139, 92, 246, 0.3);
+        --hover-bg: rgba(139, 92, 246, 0.2);
+        --z-topbar: 999999;
+        --z-dropdown: 1000000;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+      }
+      
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      
+      /* Top Bar */
+      .wh-topbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 50px;
+        background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-dark2) 100%);
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        z-index: var(--z-topbar);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+      }
+      
+      /* Brand */
+      .wh-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      
+      .wh-logo {
+        font-size: 24px;
+        line-height: 1;
+      }
+      
+      .wh-brand-text {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.2;
+      }
+      
+      .wh-brand-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+      
+      .wh-brand-subtitle {
+        font-size: 10px;
+        color: var(--text-muted);
+      }
+      
+      /* Auth Fields */
+      .wh-auth {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      .wh-auth-field {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(0, 0, 0, 0.2);
+        padding: 6px 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      
+      .wh-auth-field span {
+        font-size: 14px;
+      }
+      
+      .wh-auth-field input {
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        font-size: 12px;
+        width: 120px;
+        outline: none;
+      }
+      
+      .wh-auth-field input::placeholder {
+        color: var(--text-muted);
+      }
+      
+      .wh-auth-status {
+        font-size: 10px;
+        margin-left: 4px;
+      }
+      
+      /* Navigation */
+      .wh-nav {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      
+      .wh-nav-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        position: relative;
+        font-size: 18px;
+        line-height: 1;
+      }
+      
+      .wh-nav-btn:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+      }
+      
+      .wh-nav-btn.active {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+      }
+      
+      .wh-nav-btn.active::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 20px;
+        height: 2px;
+        background: linear-gradient(90deg, var(--accent-purple), var(--accent-blue));
+        border-radius: 1px;
+      }
+      
+      /* Dropdown */
+      .wh-dropdown {
+        position: absolute;
+        top: calc(100% + 2px);
+        right: 16px;
+        min-width: 280px;
+        max-width: 350px;
+        max-height: 70vh;
+        overflow-y: auto;
+        background: var(--bg-dark2);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        padding: 12px;
+        z-index: var(--z-dropdown);
+        display: none;
+        animation: dropdownOpen 0.2s ease-out;
+      }
+      
+      .wh-dropdown.open {
+        display: block;
+      }
+      
+      @keyframes dropdownOpen {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      
+      /* Dropdown Content Styles */
+      .wh-dropdown h3 {
+        font-size: 13px;
+        color: var(--text-primary);
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      
+      .wh-dropdown label {
+        display: block;
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+        margin-top: 8px;
+      }
+      
+      .wh-dropdown input[type="text"],
+      .wh-dropdown input[type="password"],
+      .wh-dropdown textarea,
+      .wh-dropdown select {
+        width: 100%;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        padding: 8px;
+        color: var(--text-primary);
+        font-size: 12px;
+        font-family: inherit;
+      }
+      
+      .wh-dropdown textarea {
+        resize: vertical;
+        min-height: 60px;
+      }
+      
+      .wh-dropdown input[type="checkbox"] {
+        margin-right: 6px;
+      }
+      
+      .wh-dropdown button {
+        background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+        border: none;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        margin-top: 8px;
+        transition: all 0.2s;
+      }
+      
+      .wh-dropdown button:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+      }
+      
+      .wh-dropdown button:active {
+        transform: translateY(0);
+      }
+      
+      .wh-dropdown .status {
+        font-size: 11px;
+        margin-top: 8px;
+        padding: 6px;
+        border-radius: 4px;
+        display: none;
+      }
+      
+      .wh-dropdown .status.ok {
+        display: block;
+        background: rgba(120, 255, 190, 0.1);
+        color: rgba(120, 255, 190, 0.95);
+      }
+      
+      .wh-dropdown .status.err {
+        display: block;
+        background: rgba(255, 77, 79, 0.1);
+        color: #ff4d4f;
+      }
+      
+      /* Quick Replies List */
+      .quick-reply-item {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 8px;
+        border-radius: 4px;
+        margin-bottom: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      
+      .quick-reply-item strong {
+        color: var(--accent-purple);
+        font-size: 11px;
+      }
+      
+      .quick-reply-item div {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 4px;
+      }
+      
+      /* Team Members */
+      .team-member {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 8px;
+        border-radius: 4px;
+        margin-bottom: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      
+      .team-member-info {
+        flex: 1;
+      }
+      
+      .team-member-info strong {
+        color: var(--text-primary);
+        font-size: 11px;
+      }
+      
+      .team-member-info div {
+        font-size: 10px;
+        color: var(--text-muted);
+      }
+      
+      /* Scrollbar */
+      .wh-dropdown::-webkit-scrollbar {
+        width: 6px;
+      }
+      
+      .wh-dropdown::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
+      }
+      
+      .wh-dropdown::-webkit-scrollbar-thumb {
+        background: rgba(139, 92, 246, 0.5);
+        border-radius: 3px;
+      }
+      
+      .wh-dropdown::-webkit-scrollbar-thumb:hover {
+        background: rgba(139, 92, 246, 0.7);
+      }
+    `;
+    
+    topBarShadow.appendChild(topBarStyle);
+    
+    // Create top bar HTML
+    const topBarHTML = `
+      <div class="wh-topbar">
+        <!-- Brand -->
+        <div class="wh-brand">
+          <span class="wh-logo">🤖</span>
+          <div class="wh-brand-text">
+            <span class="wh-brand-name">WhatsHybrid Lite</span>
+            <span class="wh-brand-subtitle">CRM Quantum • Atendimento Inteligente</span>
+          </div>
+        </div>
+        
+        <!-- Auth Fields -->
+        <div class="wh-auth">
+          <div class="wh-auth-field">
+            <span>🔐</span>
+            <input type="password" id="whLicense" placeholder="Licença..." maxlength="20">
+            <span class="wh-auth-status" id="whLicenseStatus"></span>
+          </div>
+          <div class="wh-auth-field" id="whApiField" style="display: none;">
+            <span>🔑</span>
+            <input type="text" id="whApiKey" placeholder="API Key...">
+            <span class="wh-auth-status" id="whApiKeyStatus"></span>
+          </div>
+        </div>
+        
+        <!-- Navigation -->
+        <nav class="wh-nav">
+          <button class="wh-nav-btn" data-tab="config" title="Configurações">⚙️</button>
+          <button class="wh-nav-btn" data-tab="quick" title="Respostas Rápidas">⚡</button>
+          <button class="wh-nav-btn" data-tab="team" title="Equipe">👥</button>
+          <button class="wh-nav-btn" data-tab="copilot" title="Copilot">📊</button>
+          <button class="wh-nav-btn" data-tab="training" title="Treinamento IA">🧠</button>
+          <button class="wh-nav-btn" data-tab="campaigns" title="Campanhas">📢</button>
+          <button class="wh-nav-btn" data-tab="contacts" title="Contatos">📇</button>
+        </nav>
+      </div>
+    `;
+    
+    const topBarContainer = document.createElement('div');
+    topBarContainer.innerHTML = topBarHTML;
+    topBarShadow.appendChild(topBarContainer);
+    
+    // Create dropdown containers
+    const dropdownsHTML = `
+      <div class="wh-dropdown" id="whDropdown-config"></div>
+      <div class="wh-dropdown" id="whDropdown-quick"></div>
+      <div class="wh-dropdown" id="whDropdown-team"></div>
+      <div class="wh-dropdown" id="whDropdown-copilot"></div>
+      <div class="wh-dropdown" id="whDropdown-training"></div>
+      <div class="wh-dropdown" id="whDropdown-campaigns"></div>
+      <div class="wh-dropdown" id="whDropdown-contacts"></div>
+    `;
+    
+    const dropdownsContainer = document.createElement('div');
+    dropdownsContainer.innerHTML = dropdownsHTML;
+    topBarShadow.appendChild(dropdownsContainer);
+    
+    document.body.appendChild(topBarHost);
+    
+    // Initialize top bar functionality
+    initTopBar(topBarShadow);
+    
+    // Compress WhatsApp Web to make space for the top bar
+    compressWhatsAppWeb();
+    
+    log('✅ Top bar mounted');
+  }
+  
+  function compressWhatsAppWeb() {
+    // Add margin-top to WhatsApp Web to make space for the top bar
+    const whatsappBody = document.body;
+    if (whatsappBody) {
+      whatsappBody.style.marginTop = '50px';
+    }
+    
+    const whatsappApp = document.querySelector('#app');
+    if (whatsappApp) {
+      whatsappApp.style.marginTop = '50px';
+    }
+  }
+  
+  function initTopBar(shadow) {
+    // Get elements
+    const licenseInput = shadow.getElementById('whLicense');
+    const licenseStatus = shadow.getElementById('whLicenseStatus');
+    const apiField = shadow.getElementById('whApiField');
+    const apiKeyInput = shadow.getElementById('whApiKey');
+    const apiKeyStatus = shadow.getElementById('whApiKeyStatus');
+    const navButtons = shadow.querySelectorAll('.wh-nav-btn');
+    
+    let currentOpenDropdown = null;
+    
+    // Load saved auth data
+    chrome.storage.local.get(['wh_license', 'wh_apikey'], (result) => {
+      if (result.wh_license) {
+        licenseInput.value = result.wh_license;
+        checkLicense(result.wh_license);
+      }
+      if (result.wh_apikey) {
+        apiKeyInput.value = result.wh_apikey;
+      }
+    });
+    
+    // License validation
+    licenseInput.addEventListener('input', () => {
+      const license = licenseInput.value.trim();
+      checkLicense(license);
+      chrome.storage.local.set({ wh_license: license });
+    });
+    
+    function checkLicense(license) {
+      // Simple client-side validation for demo purposes
+      // In production, this should be validated server-side
+      const validLicense = 'Cristi@no123';
+      
+      if (license === validLicense) {
+        licenseStatus.textContent = '✓';
+        licenseStatus.style.color = '#52c41a';
+        apiField.style.display = 'flex';
+      } else if (license.length > 0) {
+        licenseStatus.textContent = '✗';
+        licenseStatus.style.color = '#ff4d4f';
+        apiField.style.display = 'none';
+      } else {
+        licenseStatus.textContent = '';
+        apiField.style.display = 'none';
+      }
+    }
+    
+    // API Key saving
+    apiKeyInput.addEventListener('input', () => {
+      const apiKey = apiKeyInput.value.trim();
+      chrome.storage.local.set({ wh_apikey: apiKey });
+      if (apiKey) {
+        apiKeyStatus.textContent = '✓';
+        apiKeyStatus.style.color = '#52c41a';
+      } else {
+        apiKeyStatus.textContent = '';
+      }
+    });
+    
+    // Navigation buttons - toggle dropdowns
+    navButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tab = btn.dataset.tab;
+        const dropdown = shadow.getElementById(`whDropdown-${tab}`);
+        
+        if (!dropdown) return;
+        
+        // Close current dropdown if clicking same button
+        if (currentOpenDropdown === dropdown) {
+          closeDropdown();
+          return;
+        }
+        
+        // Close previous dropdown and open new one
+        closeDropdown();
+        openDropdown(btn, dropdown, tab);
+      });
+    });
+    
+    function openDropdown(btn, dropdown, tab) {
+      // Mark button as active
+      navButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      // Position dropdown below button
+      const btnRect = btn.getBoundingClientRect();
+      dropdown.style.top = '52px';
+      
+      // Load content for the tab
+      loadDropdownContent(dropdown, tab, shadow);
+      
+      // Show dropdown
+      dropdown.classList.add('open');
+      currentOpenDropdown = dropdown;
+    }
+    
+    function closeDropdown() {
+      if (currentOpenDropdown) {
+        currentOpenDropdown.classList.remove('open');
+        currentOpenDropdown = null;
+      }
+      navButtons.forEach(b => b.classList.remove('active'));
+    }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      const topBarRoot = document.getElementById('wh-topbar-root');
+      if (!topBarRoot) return;
+      
+      const topBarShadow = topBarRoot.shadowRoot;
+      if (!topBarShadow) return;
+      
+      // Check if click is outside the shadow root
+      if (!topBarRoot.contains(e.target)) {
+        closeDropdown();
+      }
+    });
+    
+    // Close dropdown with ESC key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeDropdown();
+      }
+    });
+  }
+  
+  function loadDropdownContent(dropdown, tab, shadow) {
+    // Load content based on tab
+    switch (tab) {
+      case 'config':
+        loadConfigTab(dropdown);
+        break;
+      case 'quick':
+        loadQuickTab(dropdown);
+        break;
+      case 'team':
+        loadTeamTab(dropdown);
+        break;
+      case 'copilot':
+        loadCopilotTab(dropdown);
+        break;
+      case 'training':
+        loadTrainingTab(dropdown);
+        break;
+      case 'campaigns':
+        loadCampaignsTab(dropdown);
+        break;
+      case 'contacts':
+        loadContactsTab(dropdown);
+        break;
+    }
+  }
+  
+  // Tab content loaders (simplified versions)
+  async function loadConfigTab(dropdown) {
+    const settings = await getSettingsCached();
+    
+    dropdown.innerHTML = `
+      <h3>⚙️ Configurações</h3>
+      <label>Persona do Assistente:</label>
+      <textarea id="configPersona" placeholder="Ex: Você é um atendente cordial e prestativo...">${settings.persona || ''}</textarea>
+      
+      <label>Contexto do Negócio:</label>
+      <textarea id="configContext" placeholder="Ex: Vendemos produtos eletrônicos...">${settings.businessContext || ''}</textarea>
+      
+      <label style="display: flex; align-items: center; margin-top: 12px;">
+        <input type="checkbox" id="configAutoSuggest" ${settings.autoSuggest ? 'checked' : ''}>
+        <span>Ativar Auto-sugestão</span>
+      </label>
+      
+      <label style="display: flex; align-items: center;">
+        <input type="checkbox" id="configAutoMemory" ${settings.autoMemory !== false ? 'checked' : ''}>
+        <span>Ativar Auto-memória</span>
+      </label>
+      
+      <button id="saveConfig">Salvar Configurações</button>
+      <div class="status" id="configStatus"></div>
+    `;
+    
+    const saveBtn = dropdown.querySelector('#saveConfig');
+    const statusDiv = dropdown.querySelector('#configStatus');
+    
+    saveBtn.addEventListener('click', async () => {
+      const persona = dropdown.querySelector('#configPersona').value;
+      const context = dropdown.querySelector('#configContext').value;
+      const autoSuggest = dropdown.querySelector('#configAutoSuggest').checked;
+      const autoMemory = dropdown.querySelector('#configAutoMemory').checked;
+      
+      try {
+        const result = await bg('SAVE_SETTINGS', {
+          settings: { persona, businessContext: context, autoSuggest, autoMemory }
+        });
+        
+        if (!result || !result.ok) {
+          throw new Error(result?.error || 'Falha ao salvar configurações');
+        }
+        
+        whlCache.delete('settings');
+        statusDiv.textContent = '✅ Configurações salvas!';
+        statusDiv.className = 'status ok';
+        setTimeout(() => statusDiv.className = 'status', 3000);
+      } catch (e) {
+        statusDiv.textContent = `❌ Erro: ${e.message || 'Falha ao salvar'}`;
+        statusDiv.className = 'status err';
+      }
+    });
+  }
+  
+  async function loadQuickTab(dropdown) {
+    const quickReplies = await loadQuickReplies();
+    
+    let html = '<h3>⚡ Respostas Rápidas</h3>';
+    
+    if (quickReplies.length === 0) {
+      html += '<p style="color: var(--text-muted); font-size: 11px;">Nenhuma resposta rápida cadastrada.</p>';
+    } else {
+      quickReplies.forEach((qr, idx) => {
+        html += `
+          <div class="quick-reply-item">
+            <strong>/${qr.trigger}</strong>
+            <div>${qr.response.slice(0, 50)}${qr.response.length > 50 ? '...' : ''}</div>
+          </div>
+        `;
+      });
+    }
+    
+    html += `
+      <label>Gatilho (ex: ola):</label>
+      <input type="text" id="quickTrigger" placeholder="/ola">
+      
+      <label>Resposta:</label>
+      <textarea id="quickResponse" placeholder="Olá! Como posso ajudar?"></textarea>
+      
+      <button id="addQuick">Adicionar</button>
+      <div class="status" id="quickStatus"></div>
+    `;
+    
+    dropdown.innerHTML = html;
+    
+    const addBtn = dropdown.querySelector('#addQuick');
+    const statusDiv = dropdown.querySelector('#quickStatus');
+    
+    addBtn.addEventListener('click', async () => {
+      const trigger = dropdown.querySelector('#quickTrigger').value.trim().replace(/^\//, '');
+      const response = dropdown.querySelector('#quickResponse').value.trim();
+      
+      if (!trigger || !response) {
+        statusDiv.textContent = '❌ Preencha gatilho e resposta';
+        statusDiv.className = 'status err';
+        return;
+      }
+      
+      quickReplies.push({ trigger, response });
+      
+      chrome.storage.local.set({ quickReplies }, () => {
+        statusDiv.textContent = '✅ Resposta rápida adicionada!';
+        statusDiv.className = 'status ok';
+        loadQuickTab(dropdown);
+      });
+    });
+  }
+  
+  async function loadTeamTab(dropdown) {
+    dropdown.innerHTML = `
+      <h3>👥 Equipe</h3>
+      <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
+        Gerencie os membros da equipe e envie mensagens em massa.
+      </p>
+      
+      <label>Nome do Membro:</label>
+      <input type="text" id="teamName" placeholder="João Silva">
+      
+      <label>Telefone:</label>
+      <input type="text" id="teamPhone" placeholder="+5511999999999">
+      
+      <button id="addTeamMember">Adicionar Membro</button>
+      
+      <div id="teamList" style="margin-top: 12px;"></div>
+      
+      <div class="status" id="teamStatus"></div>
+    `;
+    
+    // Load existing team members
+    chrome.storage.local.get(['team_members'], (result) => {
+      const members = result.team_members || [];
+      const listDiv = dropdown.querySelector('#teamList');
+      
+      if (members.length === 0) {
+        listDiv.innerHTML = '<p style="color: var(--text-muted); font-size: 11px;">Nenhum membro cadastrado.</p>';
+      } else {
+        listDiv.innerHTML = members.map((m, idx) => `
+          <div class="team-member">
+            <div class="team-member-info">
+              <strong>${m.name}</strong>
+              <div>${m.phone}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+    });
+    
+    const addBtn = dropdown.querySelector('#addTeamMember');
+    const statusDiv = dropdown.querySelector('#teamStatus');
+    
+    addBtn.addEventListener('click', () => {
+      const name = dropdown.querySelector('#teamName').value.trim();
+      const phone = dropdown.querySelector('#teamPhone').value.trim();
+      
+      if (!name || !phone) {
+        statusDiv.textContent = '❌ Preencha nome e telefone';
+        statusDiv.className = 'status err';
+        return;
+      }
+      
+      chrome.storage.local.get(['team_members'], (result) => {
+        const members = result.team_members || [];
+        members.push({ name, phone });
+        
+        chrome.storage.local.set({ team_members: members }, () => {
+          statusDiv.textContent = '✅ Membro adicionado!';
+          statusDiv.className = 'status ok';
+          loadTeamTab(dropdown);
+        });
+      });
+    });
+  }
+  
+  async function loadCopilotTab(dropdown) {
+    const confidenceResp = await bg('GET_CONFIDENCE', {});
+    const score = confidenceResp?.score || 0;
+    const config = confidenceResp?.config || {};
+    
+    dropdown.innerHTML = `
+      <h3>📊 Copilot</h3>
+      <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
+        Score de confiança do assistente IA
+      </p>
+      
+      <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+        <div style="font-size: 24px; font-weight: 600; color: ${score >= 70 ? '#52c41a' : '#faad14'};">
+          ${score}%
+        </div>
+        <div style="font-size: 10px; color: var(--text-muted);">
+          Score de Confiança
+        </div>
+      </div>
+      
+      <label style="display: flex; align-items: center;">
+        <input type="checkbox" id="copilotEnabled" ${config.copilot_enabled ? 'checked' : ''}>
+        <span>Ativar Copilot (envio automático)</span>
+      </label>
+      
+      <p style="color: var(--text-muted); font-size: 10px; margin-top: 8px;">
+        O Copilot envia respostas automaticamente quando o score de confiança está acima do limite.
+      </p>
+    `;
+  }
+  
+  async function loadTrainingTab(dropdown) {
+    dropdown.innerHTML = `
+      <h3>🧠 Treinamento IA</h3>
+      <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
+        Configure o conhecimento da IA. Para acesso completo, use a extensão popup.
+      </p>
+      
+      <label>Nome do Negócio:</label>
+      <input type="text" id="trainingBizName" placeholder="Minha Empresa">
+      
+      <label>Descrição:</label>
+      <textarea id="trainingBizDesc" placeholder="Vendemos produtos de qualidade..."></textarea>
+      
+      <button id="saveTraining">Salvar</button>
+      <div class="status" id="trainingStatus"></div>
+      
+      <p style="color: var(--text-muted); font-size: 10px; margin-top: 12px;">
+        💡 Dica: Clique no ícone da extensão para acessar todas as opções de treinamento.
+      </p>
+    `;
+    
+    // Load existing knowledge
+    const knowledge = await getKnowledge();
+    dropdown.querySelector('#trainingBizName').value = knowledge.business.name || '';
+    dropdown.querySelector('#trainingBizDesc').value = knowledge.business.description || '';
+    
+    const saveBtn = dropdown.querySelector('#saveTraining');
+    const statusDiv = dropdown.querySelector('#trainingStatus');
+    
+    saveBtn.addEventListener('click', async () => {
+      const name = dropdown.querySelector('#trainingBizName').value.trim();
+      const description = dropdown.querySelector('#trainingBizDesc').value.trim();
+      
+      knowledge.business.name = name;
+      knowledge.business.description = description;
+      
+      await saveKnowledge(knowledge);
+      
+      statusDiv.textContent = '✅ Conhecimento salvo!';
+      statusDiv.className = 'status ok';
+      setTimeout(() => statusDiv.className = 'status', 3000);
+    });
+  }
+  
+  async function loadCampaignsTab(dropdown) {
+    dropdown.innerHTML = `
+      <h3>📢 Campanhas</h3>
+      <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
+        Envie mensagens em massa. Para opções completas, use a extensão popup.
+      </p>
+      
+      <label>Números (um por linha):</label>
+      <textarea id="campNumbers" placeholder="+5511999999999&#10;+5511988888888" style="min-height: 80px;"></textarea>
+      
+      <label>Mensagem:</label>
+      <textarea id="campMessage" placeholder="Olá {{nome}}! Temos uma promoção especial..."></textarea>
+      
+      <button id="startCampaign">Iniciar Campanha</button>
+      <div class="status" id="campStatus"></div>
+      
+      <p style="color: var(--text-muted); font-size: 10px; margin-top: 12px;">
+        💡 Use {{nome}} e {{numero}} como variáveis na mensagem.
+      </p>
+    `;
+    
+    const startBtn = dropdown.querySelector('#startCampaign');
+    const statusDiv = dropdown.querySelector('#campStatus');
+    
+    startBtn.addEventListener('click', async () => {
+      const numbers = dropdown.querySelector('#campNumbers').value.trim();
+      const message = dropdown.querySelector('#campMessage').value.trim();
+      
+      if (!numbers || !message) {
+        statusDiv.textContent = '❌ Preencha números e mensagem';
+        statusDiv.className = 'status err';
+        return;
+      }
+      
+      // Parse numbers
+      const lines = numbers.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const entries = lines.map(line => {
+        const parts = line.split(',').map(p => p.trim());
+        const rawNumber = (parts[0] || '').replace(/[^\d+]/g, '');
+        const name = parts[1] || '';
+        
+        // Validate phone number (at least 8 digits)
+        const digitsOnly = rawNumber.replace(/\D/g, '');
+        if (digitsOnly.length < 8) return null;
+        
+        const number = rawNumber.startsWith('+') ? rawNumber : '+' + rawNumber;
+        return { number, name };
+      }).filter(Boolean); // Remove null entries
+      
+      if (entries.length === 0) {
+        statusDiv.textContent = '❌ Nenhum número válido encontrado';
+        statusDiv.className = 'status err';
+        return;
+      }
+      
+      statusDiv.textContent = `🚀 Iniciando campanha com ${entries.length} contatos...`;
+      statusDiv.className = 'status ok';
+      
+      try {
+        await executeDomCampaignDirectly(entries, message, null);
+        statusDiv.textContent = '✅ Campanha concluída!';
+      } catch (e) {
+        statusDiv.textContent = `❌ Erro: ${e.message}`;
+        statusDiv.className = 'status err';
+      }
+    });
+  }
+  
+  async function loadContactsTab(dropdown) {
+    dropdown.innerHTML = `
+      <h3>📇 Contatos</h3>
+      <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 12px;">
+        Extraia contatos visíveis na tela.
+      </p>
+      
+      <button id="extractContacts">Extrair Contatos</button>
+      
+      <label style="margin-top: 12px;">Contatos Extraídos:</label>
+      <textarea id="contactsResult" readonly style="min-height: 120px;"></textarea>
+      
+      <button id="downloadContacts">Baixar CSV</button>
+      <div class="status" id="contactsStatus"></div>
+    `;
+    
+    const extractBtn = dropdown.querySelector('#extractContacts');
+    const downloadBtn = dropdown.querySelector('#downloadContacts');
+    const resultArea = dropdown.querySelector('#contactsResult');
+    const statusDiv = dropdown.querySelector('#contactsStatus');
+    
+    extractBtn.addEventListener('click', () => {
+      try {
+        const nums = [];
+        
+        // Extract from visible chat titles (more specific selector)
+        const chatElements = document.querySelectorAll('[data-testid="cell-frame-title"], [data-testid="conversation-info-header"] span[title], #pane-side [role="row"] span[title]');
+        const limitedElements = Array.from(chatElements).slice(0, 200); // Reasonable limit
+        
+        for (const el of limitedElements) {
+          const title = el.getAttribute('title') || el.textContent;
+          if (title) {
+            nums.push(...parseNumbersFromText(title));
+          }
+        }
+        
+        const unique = uniq(nums);
+        resultArea.value = unique.join('\n');
+        statusDiv.textContent = `✅ ${unique.length} contatos encontrados`;
+        statusDiv.className = 'status ok';
+      } catch (e) {
+        statusDiv.textContent = `❌ Erro: ${e.message || 'Falha na extração'}`;
+        statusDiv.className = 'status err';
+      }
+    });
+    
+    downloadBtn.addEventListener('click', () => {
+      try {
+        const nums = resultArea.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+        if (!nums.length) {
+          statusDiv.textContent = '❌ Nenhum contato para baixar';
+          statusDiv.className = 'status err';
+          return;
+        }
+        
+        const csv = ['numero', ...nums].map(csvEscape).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `contatos_whl_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        
+        statusDiv.textContent = '✅ CSV baixado';
+        statusDiv.className = 'status ok';
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+      } catch (e) {
+        statusDiv.textContent = `❌ Erro: ${e.message}`;
+        statusDiv.className = 'status err';
+      }
+    });
+  }
+
   // Mount when possible (document_start friendly)
   function boot() {
     try {
       mount();
+      mountTopBar();
       // Setup Quick Reply listener
       setupQuickReplyListener();
-      debugLog('✅ Boot completed - Quick Reply listener active');
+      debugLog('✅ Boot completed - Quick Reply listener active, Top Bar mounted');
     } catch (e) {
       warn('Falha ao montar painel:', e);
     }

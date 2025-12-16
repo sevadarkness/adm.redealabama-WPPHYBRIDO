@@ -88,6 +88,45 @@ if ($requiredSecret !== '') {
     }
 }
 
+// --- Rate Limiting ---
+$rateLimitEnabled = getenv('ALABAMA_RATE_LIMIT_ENABLED') !== '0';
+if ($rateLimitEnabled) {
+    $rateLimitKey = 'ai_chat_' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    $rateLimitFile = sys_get_temp_dir() . '/alabama_rate_' . md5($rateLimitKey) . '.json';
+    $rateLimitMax = (int)(getenv('ALABAMA_RATE_LIMIT_MAX') ?: 30); // 30 requests
+    $rateLimitWindow = (int)(getenv('ALABAMA_RATE_LIMIT_WINDOW') ?: 60); // per 60 seconds
+    
+    $rateData = [];
+    if (is_file($rateLimitFile)) {
+        $raw = @file_get_contents($rateLimitFile);
+        $rateData = json_decode($raw ?: '{}', true) ?: [];
+    }
+    
+    $now = time();
+    $windowStart = $now - $rateLimitWindow;
+    
+    // Limpar requests antigas
+    $rateData['requests'] = array_filter(
+        $rateData['requests'] ?? [],
+        fn($ts) => $ts > $windowStart
+    );
+    
+    // Verificar limite
+    if (count($rateData['requests']) >= $rateLimitMax) {
+        $retryAfter = ($rateData['requests'][0] ?? $now) + $rateLimitWindow - $now;
+        header('Retry-After: ' . max(1, $retryAfter));
+        respond([
+            'ok' => false, 
+            'error' => 'Rate limit excedido. Aguarde ' . $retryAfter . ' segundos.',
+            'retry_after' => $retryAfter
+        ], 429);
+    }
+    
+    // Registrar request
+    $rateData['requests'][] = $now;
+    @file_put_contents($rateLimitFile, json_encode($rateData), LOCK_EX);
+}
+
 $raw = file_get_contents('php://input');
 $data = json_decode($raw ?: '', true);
 if (!is_array($data)) {

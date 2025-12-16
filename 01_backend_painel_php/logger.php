@@ -16,6 +16,41 @@ if (!defined('ALABAMA_LOG_DIR')) {
     define('ALABAMA_LOG_DIR', __DIR__ . '/logs');
 }
 
+/**
+ * Rotaciona arquivo de log se exceder tamanho máximo.
+ * 
+ * @param string $file Caminho do arquivo de log
+ * @param int $maxSizeBytes Tamanho máximo em bytes (default: 10MB)
+ * @param int $maxFiles Número máximo de arquivos rotacionados (default: 5)
+ */
+function alabama_rotate_log_if_needed(string $file, int $maxSizeBytes = 10485760, int $maxFiles = 5): void
+{
+    if (!is_file($file)) {
+        return;
+    }
+    
+    $size = @filesize($file);
+    if ($size === false || $size < $maxSizeBytes) {
+        return;
+    }
+    
+    // Rotacionar: app.log -> app.log.1 -> app.log.2 -> ...
+    for ($i = $maxFiles - 1; $i >= 1; $i--) {
+        $old = $file . '.' . $i;
+        $new = $file . '.' . ($i + 1);
+        if (is_file($old)) {
+            if ($i + 1 >= $maxFiles) {
+                @unlink($old); // Remove o mais antigo
+            } else {
+                @rename($old, $new);
+            }
+        }
+    }
+    
+    // Rotacionar o arquivo atual
+    @rename($file, $file . '.1');
+}
+
 // Tenta carregar o contexto de requisição (para obter request_id), se existir
 $requestContextFile = __DIR__ . '/app/Support/RequestContext.php';
 if (is_file($requestContextFile)) {
@@ -130,6 +165,7 @@ function log_app_event(string $channel, string $event, array $context = []): voi
     }
 
     foreach ($files as $file) {
+        alabama_rotate_log_if_needed($file);
         @file_put_contents($file, $line, FILE_APPEND);
     }
 

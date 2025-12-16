@@ -1206,6 +1206,9 @@ ${transcript || '(não consegui ler mensagens)'}
         background: linear-gradient(135deg, rgba(139,92,246,.95), rgba(59,130,246,.95));
         border: 1px solid rgba(255,255,255,.18);
         box-shadow: 0 16px 44px rgba(0,0,0,.45);
+        position: fixed;
+        right: 24px;
+        top: 80px;
       }
       .fab span{ font-size: 20px; filter: drop-shadow(0 6px 12px rgba(0,0,0,.35)); }
       .badge{
@@ -1229,7 +1232,7 @@ ${transcript || '(não consegui ler mensagens)'}
       .panel{
         position:absolute;
         right: 0;
-        bottom: 62px;
+        top: 62px;
         width: 388px;
         max-height: 74vh;
         overflow:auto;

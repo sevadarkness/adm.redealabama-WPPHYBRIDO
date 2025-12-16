@@ -125,6 +125,14 @@ if ($name === '') {
     $name = 'Extensão - ' . date('Y-m-d H:i');
 }
 
+// Handle scheduling
+$agendadoPara = null;
+if (!empty($body['scheduled_at'])) {
+    $agendadoPara = date('Y-m-d H:i:s', strtotime($body['scheduled_at']));
+} elseif (!empty($body['agendado_para'])) {
+    $agendadoPara = date('Y-m-d H:i:s', strtotime($body['agendado_para']));
+}
+
 // DB
 require_once __DIR__ . '/../db_config.php';
 require_once __DIR__ . '/../whatsapp_official_api.php';
@@ -164,8 +172,8 @@ try {
     $pdo->beginTransaction();
 
     $stmtJob = $pdo->prepare("\
-        INSERT INTO whatsapp_bulk_jobs (user_id, nome_campanha, mensagem, total_destinatarios, min_delay_ms, max_delay_ms, is_simulation, status)
-        VALUES (:user_id, :nome, :mensagem, :total, :min_delay, :max_delay, :sim, 'queued')
+        INSERT INTO whatsapp_bulk_jobs (user_id, nome_campanha, mensagem, total_destinatarios, min_delay_ms, max_delay_ms, is_simulation, status, agendado_para)
+        VALUES (:user_id, :nome, :mensagem, :total, :min_delay, :max_delay, :sim, 'queued', :agendado)
     ");
     $stmtJob->execute([
         ':user_id' => $userId,
@@ -175,6 +183,7 @@ try {
         ':min_delay' => $minDelayMs,
         ':max_delay' => $maxDelayMs,
         ':sim' => $dryRun ? 1 : 0,
+        ':agendado' => $agendadoPara,
     ]);
 
     $jobId = (int)$pdo->lastInsertId();

@@ -107,165 +107,180 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <link rel="stylesheet" href="assets/css/theme.css">
-    <link rel="stylesheet" href="alabama-theme.css">
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AlabamaCMS 3.0 - Login</title>
+    <title>AlabamaCMS - Login</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="alabama-theme.css">
     <style>
-        :root {
-            --primary: #10b981;
-            --background: #0a0a0a;
-            --surface: #1a1a1a;
-            --text-primary: #f8f9fa;
-            --text-secondary: #9e9e9e;
-        }
-
         body {
-            background: var(--background);
             min-height: 100vh;
-            margin: 0;
-            display: grid;
-            place-items: center;
-            font-family: 'Inter', sans-serif;
-            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: radial-gradient(circle at top, #111827 0%, #030014 45%, #020617 100%);
         }
 
         .login-card {
-            background: var(--surface);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
-            padding: 1.5rem; /* Aumentado o padding */
+            background: linear-gradient(145deg, var(--al-bg-surface), var(--al-bg-base));
+            border: 1px solid var(--al-border);
+            border-radius: var(--al-radius-lg);
+            padding: 2.5rem;
             width: 100%;
-            max-width: 400px; /* Aumentado o max-width */
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            max-width: 440px;
+            box-shadow: var(--al-shadow-xl), 0 0 0 1px rgba(139, 92, 246, 0.1);
         }
 
-        .form-control {
-            background: #2a2a2a;
-            border: 1px solid #333;
-            color: var(--text-primary);
-            padding: 0.6rem 1rem; /* Aumentado o padding */
-            font-size: 1rem; /* Aumentado o font-size */
-            height: 44px; /* Aumentado o height */
-            line-height: 1.2;
+        .logo-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
         }
 
-        .form-control:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
+        .logo-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--al-primary), var(--al-accent));
+            border-radius: var(--al-radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            box-shadow: var(--al-shadow-glow);
         }
 
-        .input-group-text {
-            background: #333;
-            border: 1px solid #404040;
-            padding: 0 0.8rem; /* Aumentado o padding */
-            height: 44px; /* Aumentado o height */
-            min-width: 44px; /* Aumentado o min-width */
+        .brand-text {
+            font-size: 1.75rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--al-primary), var(--al-accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--al-text-muted);
+            font-size: 0.9375rem;
+            font-weight: 500;
+        }
+
+        .login-footer {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--al-border);
+            text-align: center;
+            color: var(--al-text-muted);
+            font-size: 0.875rem;
+        }
+
+        .password-toggle {
             cursor: pointer;
+            transition: var(--al-transition);
         }
 
-        .btn-primary {
-            padding: 0.6rem 1rem; /* Aumentado o padding */
-            font-size: 1rem; /* Aumentado o font-size */
-            height: 44px; /* Aumentado o height */
-            background: var(--primary);
-            border: none;
-            transition: all 0.3s ease;
+        .password-toggle:hover {
+            color: var(--al-text-primary);
         }
 
-        .btn-primary:hover {
-            background: #059669;
-        }
-
-        .footer {
-            font-size: 0.8rem; /* Aumentado o font-size */
-            margin-top: 1rem; /* Aumentado o margin-top */
-            padding-top: 1rem; /* Aumentado o padding-top */
-            border-top: 1px solid #333;
-            color: var(--text-secondary);
-        }
-
-        .logo-vape {
-            color: var(--primary);
-            font-size: 2rem; /* Aumentado o font-size */
-            margin-bottom: 0.6rem; /* Aumentado o margin-bottom */
-        }
-
-        .text-secondary {
-            font-size: 0.9rem; /* Aumentado o font-size */
-        }
-
-        .alert {
-            font-size: 0.9rem; /* Aumentado o font-size */
-        }
-
-        .form-check-label {
-            font-size: 0.9rem; /* Aumentado o font-size */
-        }
-
-        .form-check-input {
-            transform: scale(1); /* Aumentado o tamanho do checkbox */
+        @media (max-width: 576px) {
+            .login-card {
+                padding: 1.5rem;
+            }
+            .logo-icon {
+                width: 56px;
+                height: 56px;
+                font-size: 1.75rem;
+            }
+            .brand-text {
+                font-size: 1.5rem;
+            }
         }
     </style>
 </head>
-<body class="alabama-theme">
+<body>
     <div class="login-card">
-        <div class="text-center mb-3">
-            <i class="fas fa-smoking logo-vape"></i>
-            <h2 class="h4 text-white mb-0">AlabamaCMS 3.0</h2>
-            <p class="text-secondary mt-1">Sistema de Gerenciamento</p>
+        <div class="logo-container">
+            <div class="logo-icon">
+                <i class="fas fa-gem"></i>
+            </div>
+            <h1 class="brand-text mb-0">Alabama</h1>
+            <p class="subtitle mb-0">Sistema de Gestão Empresarial</p>
         </div>
 
         <?php if (!empty($erro)): ?>
-        <div class="alert alert-danger alert-dismissible fade show mb-2 p-2" role="alert">
-            <div><?= htmlspecialchars($erro, ENT_QUOTES, 'UTF-8') ?></div>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" style="filter: invert(1); transform: scale(0.8);"></button>
+        <div class="alert alert-danger" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            <?= htmlspecialchars($erro, ENT_QUOTES, 'UTF-8') ?>
         </div>
         <?php endif; ?>
 
         <form method="POST" class="needs-validation" novalidate>
             <?= csrf_field(); ?>
-            <!-- Campo Telefone -->
-            <div class="mb-3">
-                <label class="text-secondary d-block">Telefone</label>
-                <div class="input-group">
-                    <span class="input-group-text"><i class="fas fa-mobile-alt"></i></span>
-                    <input type="tel" class="form-control" id="telefone" name="telefone" 
-                           pattern="\d{11}" placeholder="32999999999" required value="<?= htmlspecialchars($telefone_input, ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-                <small class="text-secondary">Exemplo: 32999999999</small>
+            
+            <div class="al-form-group">
+                <label class="al-form-label">
+                    <i class="fas fa-mobile-alt me-2"></i>Telefone
+                </label>
+                <input 
+                    type="tel" 
+                    class="al-input form-control" 
+                    id="telefone" 
+                    name="telefone" 
+                    pattern="\d{11}" 
+                    placeholder="32999999999" 
+                    required 
+                    value="<?= htmlspecialchars($telefone_input, ENT_QUOTES, 'UTF-8') ?>"
+                    autocomplete="tel"
+                >
+                <small style="color: var(--al-text-muted); font-size: 0.875rem; margin-top: 0.25rem; display: block;">
+                    Exemplo: 32999999999 (DDD + número)
+                </small>
             </div>
 
-            <!-- Campo Senha -->
-            <div class="mb-3">
-                <label class="text-secondary d-block">Senha</label>
+            <div class="al-form-group">
+                <label class="al-form-label">
+                    <i class="fas fa-lock me-2"></i>Senha
+                </label>
                 <div class="input-group">
-                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                    <input type="password" class="form-control" id="senha" name="senha" placeholder="••••••••" required>
-                    <span class="input-group-text password-toggle">
+                    <input 
+                        type="password" 
+                        class="al-input form-control" 
+                        id="senha" 
+                        name="senha" 
+                        placeholder="Digite sua senha" 
+                        required
+                        autocomplete="current-password"
+                    >
+                    <span class="input-group-text password-toggle" style="background: var(--al-bg-elevated); border: 1px solid var(--al-border); border-left: none; color: var(--al-text-muted);">
                         <i class="fas fa-eye-slash"></i>
                     </span>
                 </div>
             </div>
 
-            <div class="d-flex justify-content-start mb-3">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="lembrar" name="lembrar">
-                    <label class="form-check-label text-secondary" for="lembrar">Lembrar</label>
-                </div>
+            <div class="al-checkbox mb-4">
+                <input class="form-check-input" type="checkbox" id="lembrar" name="lembrar">
+                <label style="color: var(--al-text-secondary); margin-left: 0.5rem;" for="lembrar">
+                    Lembrar meu telefone
+                </label>
             </div>
 
-            <button type="submit" class="btn btn-primary w-100 mb-2">
-                <i class="fas fa-sign-in-alt me-1"></i>Acessar
+            <button type="submit" class="al-btn al-btn-primary w-100 mb-3">
+                <i class="fas fa-sign-in-alt me-2"></i>Entrar no Sistema
             </button>
 
-            <div class="footer">
-                © 2024 AlabamaCMS 3.0<br>
-                Todos os direitos reservados
+            <div class="login-footer">
+                <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
+                    <i class="fas fa-shield-alt" style="color: var(--al-primary);"></i>
+                    <span>Acesso seguro e criptografado</span>
+                </div>
+                <p class="mb-0">
+                    &copy; <?php echo date('Y'); ?> AlabamaCMS. Todos os direitos reservados.
+                </p>
             </div>
         </form>
     </div>

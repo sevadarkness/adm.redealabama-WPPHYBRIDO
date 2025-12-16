@@ -21,10 +21,18 @@
   };
 
   // -------------------------
-  // Utils
+  // Utils & Debug
   // -------------------------
+  const DEBUG_MODE = true;
+  
   const log = (...args) => console.log('[WhatsHybrid Lite]', ...args);
   const warn = (...args) => console.warn('[WhatsHybrid Lite]', ...args);
+  
+  function debugLog(...args) {
+    if (DEBUG_MODE) {
+      console.log('[WHL Debug]', ...args);
+    }
+  }
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -143,7 +151,7 @@
   // -------------------------
   // WhatsApp DOM helpers
   // -------------------------
-  // WA_SELECTORS: Robust selectors with fallback for WhatsApp Web changes
+  // WA_SELECTORS: Robust selectors with fallback for WhatsApp Web changes (updated 2024/2025)
   const WA_SELECTORS = {
     chatHeader: [
       'header span[title]',
@@ -154,17 +162,25 @@
       '#main header'
     ],
     composer: [
-      'footer [contenteditable="true"][role="textbox"]',
+      // New 2024/2025 selectors first (Lexical editor)
       '[data-testid="conversation-compose-box-input"]',
-      'div[data-tab="10"][contenteditable="true"]',
-      '#main footer [contenteditable="true"]',
+      'footer div[contenteditable="true"][data-lexical-editor="true"]',
+      '[data-lexical-editor="true"]',
+      'div[contenteditable="true"][data-tab="10"]',
+      // Legacy selectors
+      'footer [contenteditable="true"][role="textbox"]',
+      '#main footer div[contenteditable="true"]',
       'footer div[contenteditable="true"]',
-      'div[contenteditable="true"][data-tab="10"]'
+      '#main footer [contenteditable="true"]'
     ],
     sendButton: [
-      'footer button[data-testid="compose-btn-send"]',
+      '[data-testid="compose-btn-send"]',
       'footer button span[data-icon="send"]',
       'footer button span[data-icon="send-light"]',
+      'button span[data-icon="send"]',
+      'button[aria-label="Enviar"]',
+      'button[aria-label="Send"]',
+      'footer button[data-testid="compose-btn-send"]',
       'footer button[aria-label*="Enviar"]',
       'footer button[aria-label*="Send"]'
     ],
@@ -176,11 +192,17 @@
       'footer span[data-icon="attach"]'
     ],
     searchBox: [
+      '[data-testid="chat-list-search"]',
+      '[data-testid="chat-list-search"] div[contenteditable="true"]',
+      '#pane-side div[contenteditable="true"]',
+      'div[data-testid="search-container"] div[contenteditable="true"]',
       '[data-testid="chat-list-search"] [contenteditable="true"]',
       '#pane-side [contenteditable="true"][role="textbox"]',
       '[data-testid="chat-list-search"] [role="textbox"]'
     ],
     searchResults: [
+      '[data-testid="cell-frame-container"]',
+      '#pane-side [role="listitem"]',
       '#pane-side [role="row"]',
       '[data-testid="chat-list"] [role="row"]'
     ],
@@ -383,19 +405,30 @@
 
   async function insertIntoComposer(text, humanized = false, stealthMode = false) {
     const box = findComposer();
-    if (!box) throw new Error('Não encontrei a caixa de mensagem do WhatsApp.');
-    box.focus();
-
+    if (!box) {
+      debugLog('Composer não encontrado. Seletores tentados:', WA_SELECTORS.composer);
+      throw new Error('Não encontrei a caixa de mensagem do WhatsApp.');
+    }
+    
+    debugLog('Composer encontrado:', box);
     const t = safeText(text);
+    if (!t) {
+      debugLog('Texto vazio fornecido');
+      throw new Error('Mensagem vazia.');
+    }
+    
+    debugLog('Tentando inserir texto:', t.slice(0, 50) + (t.length > 50 ? '...' : ''));
 
     if (stealthMode) {
       // Enhanced stealth mode with full human simulation
+      debugLog('Modo stealth ativado - digitação humanizada');
       await humanType(box, t);
       return true;
     }
 
     if (humanized) {
       // Clear existing content first
+      debugLog('Modo humanizado ativado');
       try {
         document.execCommand('selectAll', false, null);
         document.execCommand('delete', false, null);
@@ -406,18 +439,58 @@
       return true;
     }
 
-    // Original fast mode
-    // Try execCommand first
+    // Fast mode with multiple fallback methods
+    // Focar no elemento
+    box.focus();
+    await sleep(100);
+
+    // Método 1: execCommand (funciona na maioria dos casos)
+    debugLog('Método 1: Tentando execCommand...');
     try {
       document.execCommand('selectAll', false, null);
+      await sleep(50);
       document.execCommand('insertText', false, t);
-      return true;
-    } catch (_) {}
+      box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      
+      // Verificar se texto foi inserido
+      if (box.textContent.includes(t.slice(0, 20))) {
+        debugLog('✅ execCommand funcionou');
+        return true;
+      }
+      debugLog('⚠️ execCommand não inseriu o texto corretamente');
+    } catch (e) {
+      debugLog('❌ execCommand falhou:', e);
+    }
 
-    // Fallback
-    box.textContent = t;
-    box.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    return true;
+    // Método 2: Clipboard API (fallback)
+    debugLog('Método 2: Tentando Clipboard API...');
+    try {
+      await navigator.clipboard.writeText(t);
+      document.execCommand('paste');
+      box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      await sleep(100);
+      if (box.textContent.includes(t.slice(0, 20))) {
+        debugLog('✅ Clipboard API funcionou');
+        return true;
+      }
+      debugLog('⚠️ Clipboard API não inseriu o texto corretamente');
+    } catch (e) {
+      debugLog('❌ Clipboard API falhou:', e);
+    }
+
+    // Método 3: Keyboard events (último recurso)
+    debugLog('Método 3: Tentando textContent direto...');
+    try {
+      box.textContent = t;
+      box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+      debugLog('✅ textContent aplicado');
+      return true;
+    } catch (e) {
+      debugLog('❌ textContent falhou:', e);
+    }
+
+    throw new Error('Não consegui inserir texto no composer (todos os métodos falharam).');
   }
 
   function findSendButton() {
@@ -433,6 +506,7 @@
     if (stealthMode) {
       // Add natural delay before sending in stealth mode
       const delay = randomBetween(STEALTH_CONFIG.beforeSendDelayMin, STEALTH_CONFIG.beforeSendDelayMax);
+      debugLog(`Stealth mode: aguardando ${delay}ms antes de enviar`);
       await sleep(delay);
       
       // Check rate limit
@@ -441,8 +515,47 @@
       }
     }
     
-    const btn = findSendButton();
-    if (!btn) throw new Error('Não encontrei o botão ENVIAR.');
+    // Tentar encontrar botão de enviar
+    debugLog('Procurando botão de enviar...');
+    let btn = findSendButton();
+    
+    if (!btn) {
+      debugLog('Botão de enviar não encontrado via findSendButton, tentando fallback...');
+      // Fallback: buscar por ícone send
+      const sendIcon = document.querySelector('span[data-icon="send"], span[data-icon="send-light"]');
+      if (sendIcon) {
+        btn = sendIcon.closest('button') || sendIcon.parentElement;
+        debugLog('Botão encontrado via ícone send');
+      }
+    }
+
+    if (!btn) {
+      debugLog('Botão não encontrado, tentando Enter key como último recurso...');
+      // Último fallback: Enter key
+      const composer = findComposer();
+      if (composer) {
+        composer.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true
+        }));
+        
+        debugLog('✅ Enter key enviado ao composer');
+        
+        if (stealthMode) {
+          recordMessageSent();
+          await maybeRandomLongPause();
+        }
+        return true;
+      }
+      
+      debugLog('❌ Nem botão nem composer encontrados');
+      throw new Error('Não encontrei o botão ENVIAR nem o composer para simular Enter.');
+    }
+
+    debugLog('Clicando no botão de enviar:', btn);
     btn.click();
     
     if (stealthMode) {
@@ -451,6 +564,7 @@
       await maybeRandomLongPause();
     }
     
+    debugLog('✅ Mensagem enviada com sucesso');
     return true;
   }
 
@@ -630,93 +744,103 @@
     // Best-effort. Works inside SAME WhatsApp Web tab. No window.Store / no links.
     const q = safeText(query).replace(/[^\d+]/g, '');
     const digits = q.replace(/[^\d]/g, '');
-    if (!digits) throw new Error('Número inválido para abrir chat.');
+    
+    debugLog('openChatBySearch: query original:', query);
+    debugLog('openChatBySearch: dígitos extraídos:', digits);
+    
+    if (!digits || digits.length < 8) {
+      debugLog('❌ Número inválido (muito curto):', digits);
+      throw new Error('Número inválido.');
+    }
 
-    // Search box selectors (WhatsApp changes often)
-    const box =
-      document.querySelector('[data-testid="chat-list-search"] [contenteditable="true"]') ||
-      document.querySelector('[data-testid="chat-list-search"] [role="textbox"][contenteditable="true"]') ||
-      document.querySelector('#pane-side [contenteditable="true"][role="textbox"]') ||
-      null;
+    // Encontrar caixa de busca
+    debugLog('Procurando caixa de busca...');
+    const box = findElement('searchBox');
+    
+    if (!box) {
+      debugLog('❌ Caixa de busca não encontrada. Seletores tentados:', WA_SELECTORS.searchBox);
+      throw new Error('Caixa de busca não encontrada.');
+    }
+    
+    debugLog('✅ Caixa de busca encontrada:', box);
 
-    if (!box) throw new Error('Não encontrei a busca de chats (WhatsApp).');
-
-    // Clear any previous search first
+    // Limpar busca anterior
+    debugLog('Limpando busca anterior...');
     box.focus();
     await sleep(200);
-    try {
-      document.execCommand('selectAll', false, null);
-      document.execCommand('insertText', false, '');
-      box.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    } catch (_) {
-      box.textContent = '';
-      box.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    }
-    await sleep(300);
+    document.execCommand('selectAll', false, null);
+    document.execCommand('insertText', false, '');
+    box.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await sleep(500);
 
-    // Type the number
+    // Digitar número
+    debugLog('Digitando número na busca:', digits);
     box.focus();
-    try {
-      document.execCommand('selectAll', false, null);
-      document.execCommand('insertText', false, digits);
-      box.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    } catch (_) {
-      box.textContent = digits;
-      box.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    }
+    document.execCommand('selectAll', false, null);
+    document.execCommand('insertText', false, digits);
+    box.dispatchEvent(new InputEvent('input', { bubbles: true }));
 
-    // Wait longer for results to appear
-    await sleep(1200);
+    // Esperar resultados com mais tempo
+    debugLog('Aguardando resultados da busca...');
+    await sleep(2000);
 
     const isVisible = (el) => !!(el && el.isConnected && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
 
-    // Gather result rows with multiple retries
-    let rows = [];
-    for (let retry = 0; retry < 3; retry++) {
-      rows = Array.from(document.querySelectorAll(
-        '#pane-side [role="row"], [data-testid="chat-list"] [role="row"], [data-testid="chat-list"] [role="listitem"]'
-      )).filter(isVisible);
-      if (rows.length > 0) break;
-      await sleep(500);
+    // Buscar resultados
+    debugLog('Procurando resultados...');
+    const rows = querySelectorAll(WA_SELECTORS.searchResults).filter(el => {
+      const text = (el.innerText || '').replace(/\D/g, '');
+      const match = text.includes(digits.slice(-6)) || digits.includes(text.slice(-6));
+      if (match) debugLog('Resultado encontrado:', el.innerText?.slice(0, 50));
+      return match;
+    });
+
+    debugLog(`Encontrados ${rows.length} resultados correspondentes`);
+
+    if (!rows.length) {
+      debugLog('Nenhum resultado exato, tentando clicar no primeiro disponível...');
+      // Tentar clicar no primeiro resultado disponível
+      const anyRow = querySelector(WA_SELECTORS.searchResults);
+      if (anyRow) {
+        debugLog('Clicando no primeiro resultado:', anyRow.innerText?.slice(0, 50));
+        anyRow.click();
+        await sleep(1000);
+      } else {
+        debugLog('❌ Nenhum resultado na busca');
+        throw new Error('Nenhum resultado na busca.');
+      }
+    } else {
+      debugLog('Clicando no melhor resultado...');
+      rows[0].click();
+      await sleep(1000);
     }
 
-    const matchByDigits = (el) => {
-      const t = safeText(el.innerText || '').replace(/\D/g, '');
-      return t.includes(digits) || digits.includes(t);
-    };
-
-    // Prefer rows that contain the digits
-    let target = rows.find(matchByDigits);
-
-    // Some UIs show a "message number" / "new chat" entry; try to pick by text
-    if (!target) {
-      const candidates = rows.filter(r => {
-        const tx = safeText(r.innerText || '').toLowerCase();
-        return tx.includes(digits.slice(-6)) || tx.includes('mensag') || tx.includes('message');
-      });
-      target = candidates.find(matchByDigits) || candidates[0] || rows[0] || null;
-    }
-
-    if (!target) throw new Error('Nenhum resultado na busca do WhatsApp (para este número).');
-
-    target.click();
-    await sleep(500);
-
-    // Clear search so it doesn't interfere with next iterations
+    // Limpar busca
+    debugLog('Limpando caixa de busca...');
     try {
-      await sleep(300);
-      box.focus();
-      document.execCommand('selectAll', false, null);
-      document.execCommand('insertText', false, '');
-      box.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    } catch (_) {}
-
-    // Wait for composer with more retries
-    for (let i = 0; i < 40; i++) {
-      await sleep(300);
-      if (findComposer()) return true;
+      const searchBox = findElement('searchBox');
+      if (searchBox) {
+        searchBox.focus();
+        document.execCommand('selectAll', false, null);
+        document.execCommand('insertText', false, '');
+        searchBox.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      }
+    } catch (e) {
+      debugLog('Erro ao limpar busca (não crítico):', e);
     }
-    throw new Error('Não consegui abrir o chat (composer não apareceu).');
+
+    // Verificar se composer apareceu
+    debugLog('Verificando se composer apareceu...');
+    for (let i = 0; i < 20; i++) {
+      await sleep(300);
+      if (findComposer()) {
+        debugLog('✅ Chat aberto com sucesso (composer encontrado)');
+        return true;
+      }
+    }
+    
+    debugLog('❌ Chat não abriu (composer não encontrado após 20 tentativas)');
+    throw new Error('Chat não abriu (composer não encontrado).');
   }
 
   // -------------------------
@@ -1869,6 +1993,8 @@ ${transcript || '(não consegui ler mensagens)'}
     }
 
     async function executeDomCampaign(entries, msg) {
+      debugLog('Iniciando campanha DOM com', entries.length, 'contatos');
+      
       const dmin = clamp(campDelayMin.value || 8, 3, 120);
       const dmax = clamp(campDelayMax.value || 15, 5, 240);
 
@@ -1896,40 +2022,61 @@ ${transcript || '(não consegui ler mensagens)'}
         if (campRun.abort) break;
 
         const e = entries[i];
+        debugLog(`[${i+1}/${entries.length}] Processando:`, e.number);
+        
         const text = applyVars(msg || '', e).trim();
         const phoneDigits = e.number.replace(/[^\d]/g, '');
 
         try {
+          // 1. Abrir chat
           setCampDomStatus(`📱 (${i+1}/${entries.length}) Abrindo ${e.number}…`, 'ok');
           updateProgress(i, entries.length);
-
-          // Abre o chat dentro da mesma aba (busca lateral)
+          
+          debugLog('Abrindo chat...');
           await openChatBySearch(phoneDigits);
-          await sleep(800); // Increased delay to ensure chat opens
-
-          // Verify composer is available
+          debugLog('Chat aberto!');
+          
+          // 2. Aguardar composer
+          await sleep(500);
           const composer = findComposer();
           if (!composer) {
-            throw new Error('Não consegui abrir o chat (composer não encontrado).');
+            debugLog('❌ Composer não encontrado após abrir chat');
+            throw new Error('Composer não encontrado após abrir chat');
           }
+          debugLog('Composer encontrado!');
 
           if (campMediaPayload) {
+            // 3a. Enviar mídia
             setCampDomStatus(`📎 (${i+1}/${entries.length}) Enviando mídia para ${e.number}…`, 'ok');
-            // Envia mídia + legenda (mensagem)
+            debugLog('Enviando mídia com legenda:', text.slice(0, 30) + '...');
             await attachMediaAndSend(campMediaPayload, text);
-            await sleep(500); // Wait for media to be sent
+            debugLog('Mídia enviada!');
+            await sleep(500);
           } else {
-            if (!text) throw new Error('Mensagem vazia (e sem mídia).');
+            // 3b. Inserir texto
+            if (!text) {
+              debugLog('❌ Mensagem vazia e sem mídia');
+              throw new Error('Mensagem vazia (e sem mídia).');
+            }
             setCampDomStatus(`💬 (${i+1}/${entries.length}) Enviando mensagem para ${e.number}…`, 'ok');
-            await insertIntoComposer(text);
+            debugLog('Inserindo texto:', text.slice(0, 30) + '...');
+            await insertIntoComposer(text, false, true);
+            debugLog('Texto inserido!');
+            
+            // 4. Enviar
             await sleep(300);
-            await clickSend();
-            await sleep(500); // Wait for message to be sent
+            debugLog('Clicando enviar...');
+            await clickSend(true);
+            debugLog('Mensagem enviada!');
+            await sleep(500);
           }
 
           setCampDomStatus(`✅ Enviado (${i+1}/${entries.length}) para ${e.number}`, 'ok');
           updateProgress(i + 1, entries.length);
+          debugLog(`✅ Sucesso em ${e.number}`);
         } catch (err) {
+          debugLog(`❌ Erro em ${e.number}:`, err);
+          console.error(`[WHL] Erro em ${e.number}:`, err);
           setCampDomStatus(`❌ Falha (${i+1}/${entries.length}) em ${e.number}: ${err?.message || String(err)}`, 'err');
           updateProgress(i + 1, entries.length);
           // Continue to next contact even if one fails
@@ -1948,6 +2095,7 @@ ${transcript || '(não consegui ler mensagens)'}
         // Random delay between messages
         if (i < entries.length - 1) { // Don't delay after last message
           const delay = (Math.random() * (dmax - dmin) + dmin) * 1000;
+          debugLog(`Aguardando ${delay/1000}s...`);
           setCampDomStatus(`⏳ Aguardando ${Math.round(delay/1000)}s até próximo envio… (${i+1}/${entries.length} concluídos)`, 'ok');
           await sleep(delay);
         }
@@ -1959,8 +2107,10 @@ ${transcript || '(não consegui ler mensagens)'}
       updateProgress(entries.length, entries.length);
 
       if (campRun.abort) {
+        debugLog('Campanha interrompida pelo usuário');
         setCampDomStatus('⚠️ Campanha interrompida pelo usuário.', 'err');
       } else {
+        debugLog('Campanha concluída com sucesso!');
         setCampDomStatus(`🎉 Campanha concluída! ${entries.length} contatos processados.`, 'ok');
       }
 

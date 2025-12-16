@@ -62,14 +62,6 @@
     });
   }
 
-  async function getSettingsCached() {
-    // Use CacheManager for settings with 5 second TTL
-    return CacheManager.getOrFetch('settings', async () => {
-      const resp = await bg('GET_SETTINGS', {});
-      return resp?.settings || {};
-    }, 5000); // 5 segundos
-  }
-
   // -------------------------
   // Campaign Storage (Persistence)
   // -------------------------
@@ -93,6 +85,25 @@
         createdAt: campaign.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+      
+      // Validate storage size (chrome.storage.local limit is ~10MB)
+      const dataStr = JSON.stringify(data);
+      const sizeInBytes = new Blob([dataStr]).size;
+      const maxSize = 8 * 1024 * 1024; // 8MB to leave margin
+      
+      if (sizeInBytes > maxSize) {
+        // If media is too large, store reference instead of full base64
+        if (data.media && data.media.base64) {
+          warn('Campaign media too large for storage, removing base64 data');
+          data.media = { ...data.media, base64: null, storageLimitExceeded: true };
+        }
+        // If still too large after removing media, throw error
+        const retryDataStr = JSON.stringify(data);
+        if (new Blob([retryDataStr]).size > maxSize) {
+          throw new Error('Campaign data too large for chrome.storage.local (>8MB)');
+        }
+      }
+      
       await chrome.storage.local.set({ whl_active_campaign: data });
       return data;
     },
@@ -112,10 +123,15 @@
     async saveToHistory(campaign) {
       const result = await chrome.storage.local.get(['whl_campaign_history']);
       const history = result.whl_campaign_history || [];
-      history.unshift({
+      
+      // Remove large media data before storing in history
+      const historyCampaign = {
         ...campaign,
+        media: campaign.media?.base64 ? { ...campaign.media, base64: null } : campaign.media,
         completedAt: new Date().toISOString(),
-      });
+      };
+      
+      history.unshift(historyCampaign);
       // Manter apenas últimas 50 campanhas
       const trimmed = history.slice(0, 50);
       await chrome.storage.local.set({ whl_campaign_history: trimmed });
@@ -208,6 +224,17 @@
   });
 
   injectMainWorld();
+
+  // -------------------------
+  // Settings Cache Helper
+  // -------------------------
+  async function getSettingsCached() {
+    // Use CacheManager for settings with 5 second TTL
+    return CacheManager.getOrFetch('settings', async () => {
+      const resp = await bg('GET_SETTINGS', {});
+      return resp?.settings || {};
+    }, 5000); // 5 segundos
+  }
 
   // -------------------------
   // Robust Selectors with Fallbacks
@@ -483,14 +510,18 @@
     if (!dlg) return null;
 
     // Use the fallback system within the dialog
+    const prefix = 'div[role="dialog"] ';
     for (const selector of WA_SELECTORS.mediaSendButton) {
       try {
         let el;
-        if (selector.includes('span[data-icon')) {
-          const span = dlg.querySelector(selector.replace('div[role="dialog"] ', ''));
+        // Remove prefix if present at start
+        const localSelector = selector.startsWith(prefix) ? selector.substring(prefix.length) : selector;
+        
+        if (localSelector.includes('span[data-icon')) {
+          const span = dlg.querySelector(localSelector);
           el = span?.closest('button');
         } else {
-          el = dlg.querySelector(selector.replace('div[role="dialog"] ', ''));
+          el = dlg.querySelector(localSelector);
         }
         if (el && el.isConnected && !el.closest('footer')) {
           const rect = el.getBoundingClientRect();
@@ -858,9 +889,11 @@ Regras:
     let hash = 0;
     for (let i = 0; i < t.length; i++) {
       hash = ((hash << 5) - hash) + t.charCodeAt(i);
-      hash |= 0;
+      hash |= 0; // Convert to 32-bit integer
     }
-    return 'ai_' + hash;
+    // Add length as additional uniqueness factor to reduce collisions
+    const uniqueHash = hash.toString(36) + '_' + t.length.toString(36);
+    return 'ai_' + uniqueHash;
   }
 
   // Cached version of aiChat for reply mode

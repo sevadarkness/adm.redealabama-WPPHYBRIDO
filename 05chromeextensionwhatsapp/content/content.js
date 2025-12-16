@@ -1204,6 +1204,177 @@
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // SINCRONIZAÇÃO HÍBRIDA DE CONHECIMENTO
+  // ═══════════════════════════════════════════════════════════════════
+
+  const KNOWLEDGE_SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutos
+  let lastKnowledgeSync = 0;
+
+  // Função para buscar conhecimento do servidor
+  async function fetchServerKnowledge() {
+    const settings = await getSettingsCached();
+    
+    if (!settings.backendUrl) {
+      debugLog('Backend URL não configurado, usando apenas dados locais');
+      return null;
+    }
+    
+    try {
+      const response = await fetch(`${settings.backendUrl}/api/knowledge.php`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Alabama-Proxy-Key': settings.backendSecret || '',
+          'X-Workspace-Key': settings.memoryWorkspaceKey || 'default'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.ok) {
+        debugLog('✅ Conhecimento carregado do servidor');
+        return data.knowledge;
+      }
+      
+      return null;
+    } catch (e) {
+      debugLog('⚠️ Falha ao buscar conhecimento do servidor:', e.message);
+      return null;
+    }
+  }
+
+  // Função para salvar conhecimento no servidor
+  async function saveServerKnowledge(knowledge) {
+    const settings = await getSettingsCached();
+    
+    if (!settings.backendUrl) {
+      debugLog('Backend URL não configurado, salvando apenas localmente');
+      return false;
+    }
+    
+    try {
+      const response = await fetch(`${settings.backendUrl}/api/knowledge.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Alabama-Proxy-Key': settings.backendSecret || '',
+          'X-Workspace-Key': settings.memoryWorkspaceKey || 'default'
+        },
+        body: JSON.stringify({
+          action: 'save',
+          knowledge: knowledge
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.ok) {
+        debugLog('✅ Conhecimento salvo no servidor');
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      debugLog('⚠️ Falha ao salvar conhecimento no servidor:', e.message);
+      return false;
+    }
+  }
+
+  // Função para sincronizar (merge) conhecimento
+  async function syncKnowledge(localKnowledge) {
+    const settings = await getSettingsCached();
+    
+    if (!settings.backendUrl) {
+      debugLog('Backend URL não configurado, usando apenas dados locais');
+      return localKnowledge;
+    }
+    
+    try {
+      const response = await fetch(`${settings.backendUrl}/api/knowledge.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Alabama-Proxy-Key': settings.backendSecret || '',
+          'X-Workspace-Key': settings.memoryWorkspaceKey || 'default'
+        },
+        body: JSON.stringify({
+          action: 'sync',
+          knowledge: localKnowledge
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.ok && data.knowledge) {
+        debugLog('✅ Conhecimento sincronizado com servidor');
+        debugLog('📊 Stats:', data.stats);
+        
+        // Salvar merge localmente
+        await saveKnowledge(data.knowledge);
+        
+        lastKnowledgeSync = Date.now();
+        return data.knowledge;
+      }
+      
+      return localKnowledge;
+    } catch (e) {
+      debugLog('⚠️ Falha ao sincronizar conhecimento:', e.message);
+      return localKnowledge;
+    }
+  }
+
+  // Função híbrida para obter conhecimento (local + servidor)
+  async function getKnowledgeHybrid() {
+    // Primeiro, carregar local
+    let knowledge = await getKnowledge();
+    
+    // Verificar se precisa sincronizar
+    const shouldSync = Date.now() - lastKnowledgeSync > KNOWLEDGE_SYNC_INTERVAL;
+    
+    if (shouldSync) {
+      debugLog('🔄 Sincronizando conhecimento com servidor...');
+      knowledge = await syncKnowledge(knowledge);
+    }
+    
+    return knowledge;
+  }
+
+  // Sincronização automática periódica
+  async function startKnowledgeAutoSync() {
+    // Sincronizar imediatamente ao iniciar
+    try {
+      const localKnowledge = await getKnowledge();
+      await syncKnowledge(localKnowledge);
+    } catch (e) {
+      debugLog('⚠️ Falha na sincronização inicial:', e.message);
+    }
+    
+    // Configurar sincronização periódica
+    setInterval(async () => {
+      try {
+        const localKnowledge = await getKnowledge();
+        await syncKnowledge(localKnowledge);
+      } catch (e) {
+        debugLog('⚠️ Falha na sincronização periódica:', e.message);
+      }
+    }, KNOWLEDGE_SYNC_INTERVAL);
+    
+    debugLog('✅ Auto-sync de conhecimento configurado (intervalo: 5 min)');
+  }
+
   function parseProductsCSV(csvText) {
     const lines = csvText.split('\n').filter(l => l.trim());
     const products = [];
@@ -1251,8 +1422,8 @@ Regras:
     const p = safeText(persona).trim();
     const ctx = safeText(businessContext).trim();
 
-    // Load knowledge from training tab
-    const knowledge = await getKnowledge();
+    // Load knowledge from training tab (hybrid: local + server sync)
+    const knowledge = await getKnowledgeHybrid();
     
     let knowledgeText = '';
     
@@ -1662,6 +1833,42 @@ ${transcript || '(não consegui ler mensagens)'}
       }
       .status.ok{ color: var(--ok); }
       .status.err{ color: var(--danger); }
+
+      .sync-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        margin-top: 10px;
+        background: rgba(5, 7, 15, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .sync-status .sync-icon {
+        font-size: 14px;
+      }
+
+      .sync-status.syncing .sync-icon {
+        animation: spin 1s linear infinite;
+      }
+
+      .sync-status.synced {
+        border-color: rgba(34, 197, 94, 0.3);
+        color: #22c55e;
+      }
+
+      .sync-status.error {
+        border-color: rgba(239, 68, 68, 0.3);
+        color: #ef4444;
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
 
       .list a{
         display:block;
@@ -2152,11 +2359,19 @@ ${transcript || '(não consegui ler mensagens)'}
           <!-- Botões de Ação -->
           <div class="btns">
             <button id="saveKnowledgeBtn" class="primary">💾 Salvar Conhecimento</button>
+            <button id="syncKnowledgeBtn">🔄 Sincronizar com Servidor</button>
             <button id="exportKnowledgeBtn">📤 Exportar JSON</button>
             <button id="importKnowledgeBtn">📥 Importar JSON</button>
             <button id="clearKnowledgeBtn" class="danger">🗑️ Limpar Tudo</button>
           </div>
           <input type="file" id="importFile" accept=".json" style="display:none;">
+          
+          <!-- Indicador de status de sincronização -->
+          <div class="sync-status" id="syncStatus">
+            <span class="sync-icon">🔄</span>
+            <span class="sync-text">Última sync: nunca</span>
+          </div>
+          
           <div class="status" id="trainingStatus"></div>
         </div>
       </div>
@@ -3131,10 +3346,12 @@ ${transcript || '(não consegui ler mensagens)'}
     const statFaqs = shadow.getElementById('statFaqs');
     
     const saveKnowledgeBtn = shadow.getElementById('saveKnowledgeBtn');
+    const syncKnowledgeBtn = shadow.getElementById('syncKnowledgeBtn');
     const exportKnowledgeBtn = shadow.getElementById('exportKnowledgeBtn');
     const importKnowledgeBtn = shadow.getElementById('importKnowledgeBtn');
     const clearKnowledgeBtn = shadow.getElementById('clearKnowledgeBtn');
     const importFile = shadow.getElementById('importFile');
+    const syncStatus = shadow.getElementById('syncStatus');
     
     let currentKnowledge = null;
     let lastTestAnswer = '';
@@ -3504,8 +3721,35 @@ ${transcript || '(não consegui ler mensagens)'}
           closing: safeText(toneClosing.value).trim()
         };
         
+        // Salvar localmente primeiro
         await saveKnowledge(currentKnowledge);
-        setTrainingStatus('Conhecimento salvo ✅', 'ok');
+        
+        // Tentar sincronizar com servidor
+        const settings = await getSettingsCached();
+        if (settings.backendUrl) {
+          setTrainingStatus('Salvando e sincronizando com servidor...', null);
+          
+          const synced = await syncKnowledge(currentKnowledge);
+          if (synced !== currentKnowledge) {
+            currentKnowledge = synced;
+            setTrainingStatus('✅ Conhecimento salvo e sincronizado!', 'ok');
+            
+            // Atualizar indicador de sync
+            if (syncStatus) {
+              const syncText = syncStatus.querySelector('.sync-text');
+              if (syncText) {
+                syncText.textContent = `Última sync: ${new Date().toLocaleTimeString('pt-BR')}`;
+              }
+              syncStatus.classList.remove('error');
+              syncStatus.classList.add('synced');
+              setTimeout(() => syncStatus.classList.remove('synced'), 3000);
+            }
+          } else {
+            setTrainingStatus('✅ Salvo localmente (servidor indisponível)', 'ok');
+          }
+        } else {
+          setTrainingStatus('✅ Conhecimento salvo localmente', 'ok');
+        }
         
         // Clear cache to force reload
         whlCache.delete('settings');
@@ -3513,6 +3757,58 @@ ${transcript || '(não consegui ler mensagens)'}
         setTrainingStatus(`Erro ao salvar: ${e?.message || String(e)}`, 'err');
       }
     });
+
+    // Event: Sync Knowledge
+    if (syncKnowledgeBtn) {
+      syncKnowledgeBtn.addEventListener('click', async () => {
+        setTrainingStatus('🔄 Sincronizando...', null);
+        syncKnowledgeBtn.disabled = true;
+        
+        // Add syncing animation
+        if (syncStatus) {
+          syncStatus.classList.add('syncing');
+          syncStatus.classList.remove('synced', 'error');
+        }
+        
+        try {
+          const localKnowledge = await getKnowledge();
+          const synced = await syncKnowledge(localKnowledge);
+          
+          if (synced !== localKnowledge) {
+            currentKnowledge = synced;
+            await loadKnowledgeUI();
+            setTrainingStatus('✅ Sincronizado com sucesso!', 'ok');
+            
+            // Atualizar indicador
+            if (syncStatus) {
+              const syncText = syncStatus.querySelector('.sync-text');
+              if (syncText) {
+                syncText.textContent = `Última sync: ${new Date().toLocaleTimeString('pt-BR')}`;
+              }
+              syncStatus.classList.remove('syncing');
+              syncStatus.classList.add('synced');
+              setTimeout(() => syncStatus.classList.remove('synced'), 3000);
+            }
+          } else {
+            setTrainingStatus('⚠️ Servidor indisponível', 'err');
+            if (syncStatus) {
+              syncStatus.classList.remove('syncing');
+              syncStatus.classList.add('error');
+              setTimeout(() => syncStatus.classList.remove('error'), 3000);
+            }
+          }
+        } catch (e) {
+          setTrainingStatus(`❌ Erro: ${e?.message || String(e)}`, 'err');
+          if (syncStatus) {
+            syncStatus.classList.remove('syncing');
+            syncStatus.classList.add('error');
+            setTimeout(() => syncStatus.classList.remove('error'), 3000);
+          }
+        } finally {
+          syncKnowledgeBtn.disabled = false;
+        }
+      });
+    }
 
     // Event: Export JSON
     exportKnowledgeBtn.addEventListener('click', async () => {
@@ -3583,6 +3879,9 @@ ${transcript || '(não consegui ler mensagens)'}
     if (tabs.find(t => t.classList.contains('active') && t.dataset.tab === 'training')) {
       loadKnowledgeUI();
     }
+    
+    // Start auto-sync for knowledge
+    startKnowledgeAutoSync();
   }
 
   // -------------------------

@@ -57,6 +57,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 $stmtVend = (new \RedeAlabama\Repositories\Screens\LeadsRepository($pdo))->query_1749();
 $vendedores = $stmtVend->fetchAll(PDO::FETCH_ASSOC);
 
+// Buscar leads por status para o gráfico
+$leadsStatusStats = [];
+try {
+    $sql = "SELECT 
+                status,
+                COUNT(*) as quantidade
+            FROM leads
+            GROUP BY status
+            ORDER BY quantidade DESC";
+    
+    $stmt = $pdo->query($sql);
+    $leadsStatusStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {
+    // Silently fail
+}
+
+// Calcular totais para o rodapé
+$totalLeads = array_sum(array_column($leadsStatusStats, 'quantidade'));
+$convertidos = 0;
+foreach ($leadsStatusStats as $stat) {
+    if ($stat['status'] === 'convertido') {
+        $convertidos = (int)$stat['quantidade'];
+        break;
+    }
+}
+$taxaConversao = $totalLeads > 0 ? number_format(($convertidos / $totalLeads) * 100, 1) : 0;
+
 // Monta consulta de leads
 $where = array();
 $params = array();
@@ -112,6 +139,7 @@ $leads = $stmtLeads->fetchAll(PDO::FETCH_ASSOC);
     <link rel=\"stylesheet\" href=\"assets/css/alabama-design-system.css\">
     <link rel=\"stylesheet\" href=\"alabama-theme.css\">
     <link rel=\"stylesheet\" href=\"assets/css/alabama-page-overrides.css\">
+    <script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js\"></script>
 </head>
 <body class=\"al-body\">
 
@@ -123,6 +151,24 @@ $leads = $stmtLeads->fetchAll(PDO::FETCH_ASSOC);
         </div>
         <div class=\"text-end\">
             <span class=\"badge bg-secondary\">Usuário: <?php echo htmlspecialchars($user['nome'] ?? ''); ?> (<?php echo htmlspecialchars($nivelAcesso ?? ''); ?>)</span>
+        </div>
+    </div>
+
+    <!-- Leads Status Chart -->
+    <div class=\"row mb-4\">
+        <div class=\"col-12\">
+            <div class=\"chart-card\">
+                <div class=\"card-header\">
+                    <h3>👥 Leads por Status</h3>
+                </div>
+                <div class=\"card-body\">
+                    <canvas id=\"leadsChart\" height=\"300\"></canvas>
+                </div>
+                <div class=\"card-footer\">
+                    <span class=\"stat\">Total de Leads: <?php echo number_format($totalLeads); ?></span>
+                    <span class=\"stat success\">Taxa de Conversão: <?php echo $taxaConversao; ?>%</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -257,6 +303,78 @@ $leads = $stmtLeads->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 </div>
+
+<script>
+// Leads by Status Chart (Horizontal Bar)
+document.addEventListener('DOMContentLoaded', function() {
+    const leadsCtx = document.getElementById('leadsChart');
+    if (!leadsCtx) return;
+    
+    const statusData = <?php echo json_encode($leadsStatusStats); ?>;
+    
+    // Tradução de status
+    const statusLabels = {
+        'novo': 'Novo',
+        'em_atendimento': 'Em Atendimento',
+        'convertido': 'Convertido',
+        'perdido': 'Perdido',
+        'arquivado': 'Arquivado'
+    };
+    
+    // Cores por status
+    const statusColors = {
+        'novo': 'rgba(59, 130, 246, 0.8)',          // Azul - Novo
+        'em_atendimento': 'rgba(234, 179, 8, 0.8)', // Amarelo - Em atendimento
+        'convertido': 'rgba(34, 197, 94, 0.8)',     // Verde - Convertido
+        'perdido': 'rgba(239, 68, 68, 0.8)',        // Vermelho - Perdido
+        'arquivado': 'rgba(148, 163, 184, 0.8)'     // Cinza - Arquivado
+    };
+    
+    const labels = statusData.map(item => statusLabels[item.status] || item.status);
+    const data = statusData.map(item => parseInt(item.quantidade));
+    const colors = statusData.map(item => statusColors[item.status] || 'rgba(139, 92, 246, 0.8)');
+    
+    new Chart(leadsCtx.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Quantidade',
+                data: data,
+                backgroundColor: colors,
+                borderRadius: 8
+            }]
+        },
+        options: {
+            indexAxis: 'y', // Barras horizontais
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => 'Total: ' + ctx.raw
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { color: '#888' },
+                    grid: { color: 'rgba(255,255,255,0.1)' }
+                },
+                y: {
+                    ticks: { 
+                        color: '#fff',
+                        font: { size: 12, weight: 'bold' }
+                    },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+});
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -1110,6 +1110,18 @@ input:disabled + .slider {
   color: var(--text-muted);
 }
 
+#status {
+  color: var(--text-primary);
+}
+
+#status.ok {
+  color: var(--success);
+}
+
+#status.err {
+  color: var(--danger);
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    DIVIDER
    ═══════════════════════════════════════════════════════════════════ */

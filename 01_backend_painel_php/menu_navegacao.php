@@ -132,6 +132,7 @@ $current_page = basename($_SERVER['PHP_SELF'] ?? '');
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="navbarDropdownRelatorios">
                             <li><a class="dropdown-item" href="relatorios.php">Relatórios</a></li>
+                            <li><a class="dropdown-item" href="dashboard_analytics.php"><i class="fas fa-chart-line"></i> Dashboard Analytics</a></li>
                             <li><a class="dropdown-item" href="dashboard_supremacy.php"><i class="fas fa-tachometer-alt"></i> Dashboard Supremacy</a></li>
                             <li><a class="dropdown-item" href="relatorioestoq.php">Relatório Estoque</a></li>
                             <li><a class="dropdown-item" href="preju.php">Relatório de Prejuízo</a></li>
@@ -191,6 +192,7 @@ $current_page = basename($_SERVER['PHP_SELF'] ?? '');
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="navbarDropdownRelatoriosAdmin">
                             <li><a class="dropdown-item" href="relatorios.php">Relatórios</a></li>
+                            <li><a class="dropdown-item" href="dashboard_analytics.php"><i class="fas fa-chart-line"></i> Dashboard Analytics</a></li>
                             <li><a class="dropdown-item" href="dashboard_supremacy.php"><i class="fas fa-tachometer-alt"></i> Dashboard Supremacy</a></li>
                             <li><a class="dropdown-item" href="relatorioestoq.php">Relatório Estoque</a></li>
                             <li><a class="dropdown-item" href="preju.php">Relatório de Prejuízo</a></li>
@@ -241,7 +243,12 @@ $current_page = basename($_SERVER['PHP_SELF'] ?? '');
                         <a class="nav-link" href="apply_env_dashboard.php"><i class="fas fa-sync-alt"></i> Status apply-env</a>
                     </li>
                 <?php endif; ?>
-
+            </ul>
+            
+            <!-- Notification Widget -->
+            <?php include __DIR__ . '/includes/notifications_widget.php'; ?>
+            
+            <ul class="navbar-nav">
                 <li class="nav-item">
                     <a class="nav-link" href="sair.php"><i class="fas fa-sign-out-alt"></i> Sair</a>
                 </li>
